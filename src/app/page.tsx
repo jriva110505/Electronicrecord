@@ -1,12 +1,9 @@
 "use client";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    window.location.href = "/login";
-  };
+  const router = useRouter();
 
   return (
     <div
@@ -19,60 +16,9 @@ export default function Home() {
         fontFamily: "Arial, sans-serif",
       }}
     >
-
-      {/* Navigation Menu */}
-      <nav
-        style={{
-          position: "fixed",
-          top: 20,
-          right: 30,
-          display: "flex",
-          gap: "1rem",
-          zIndex: 10,
-        }}
-      >
-        {["About", "Education", "Hobbies", "Contact"].map((item) => (
-          <a
-            key={item}
-            href={`/${item.toLowerCase()}`}
-            style={{
-              color: "white",
-              textDecoration: "none",
-              fontWeight: "700",
-              padding: "10px 18px",
-              borderRadius: "12px",
-              border: "2px solid rgba(255,255,255,0.7)",
-              backdropFilter: "blur(5px)",
-              transition: "all 0.3s ease",
-              backgroundColor: "rgba(0,0,0,0.35)",
-            }}
-          >
-            {item}
-          </a>
-        ))}
-
-        {/* 🔥 Logout Button */}
-        <button
-          onClick={handleLogout}
-          style={{
-            color: "white",
-            fontWeight: "700",
-            padding: "10px 18px",
-            borderRadius: "12px",
-            border: "2px solid rgba(255,255,255,0.7)",
-            backgroundColor: "rgba(255,0,0,0.45)",
-            backdropFilter: "blur(5px)",
-            cursor: "pointer",
-            transition: "0.3s",
-          }}
-        >
-          Logout
-        </button>
-      </nav>
-
-{/* Background Image */}
+      {/* Background Image */}
       <Image
-        src="/qqq.jpg"
+        src="/green.jpg"
         alt="Background"
         fill
         style={{ objectFit: "cover" }}
@@ -80,75 +26,103 @@ export default function Home() {
         priority
       />
 
+      {/* Dark Overlay */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundColor: "rgba(0,0,0,0.45)",
+          zIndex: 0,
+        }}
+      />
 
-      {/* Content Container */}
+      {/* Main Content */}
       <div
         style={{
           position: "relative",
           zIndex: 1,
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
           minHeight: "100vh",
-          padding: "2rem",
-          gap: "3rem",
-          backgroundColor: "rgba(0, 0, 0, 0.45)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          textAlign: "center",
+          padding: "3rem",
+          maxWidth: "1200px",
+          margin: "0 auto",
         }}
       >
-        {/* Profile Picture */}
+        {/* Logo */}
+        <Image
+          src="/ncf.webp"
+          alt="NCF Logo"
+          width={140}
+          height={140}
+          style={{ marginBottom: "2rem" }}
+        />
+
+        {/* Title */}
+        <h1 style={{ fontSize: "3rem", fontWeight: "bold", marginBottom: "1rem" }}>
+          Naga College Foundation Inc.
+        </h1>
+
+        <h2 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
+          Electronic Central Supplies Record
+        </h2>
+
+        <p style={{ fontSize: "1.3rem", marginBottom: "3rem" }}>
+          College of Health and Sciences
+        </p>
+
+        {/* Buttons */}
         <div
           style={{
-            borderRadius: "50%",
-            overflow: "hidden",
-            width: "450px",
-            height: "450px",
-            boxShadow: "0 0 20px rgba(255, 255, 255, 0.4)",
-            flexShrink: 0,
+            display: "flex",
+            gap: "2rem",
+            width: "100%",
+            maxWidth: "600px",
+            justifyContent: "center",
           }}
         >
-          <Image src="/1.webp" alt="Jerome Riva" width={450} height={450} />
-        </div>
+          {/* STUDENT BUTTON */}
+          <button
+            onClick={() => router.push("/students")}
+            style={{
+              flex: 1,
+              padding: "18px 0",
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              borderRadius: "40px",
+              border: "none",
+              backgroundColor: "#E6D85C",
+              color: "black",
+              cursor: "pointer",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+              transition: "0.3s",
+            }}
+          >
+            Student
+          </button>
 
-        {/* Text Section */}
-        <div style={{ maxWidth: "600px", textAlign: "left" }}>
-          <h1 style={{ fontSize: "3rem", fontWeight: "bold", marginBottom: "1rem" }}>
-            Mr. Jerome Riva
-          </h1>
-          <p style={{ fontSize: "1.25rem", marginBottom: "2rem" }}>
-            Hi! I’m Jerome E. Riva, a BSIT student from Naga College Foundation, Inc. 
-            Welcome to my personal page!
-          </p>
-
-          <div style={{ display: "flex", gap: "1.5rem", fontSize: "1.1rem" }}>
-            <a
-              href="https://web.facebook.com/Jerome.Riva.009"
-              target="_blank"
-              style={{
-                color: "#0A66C2",
-                textDecoration: "none",
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "2px solid #0A66C2",
-                backdropFilter: "blur(3px)",
-              }}
-            >
-              Facebook
-            </a>
-            <a
-              href="mailto:rivajerome00@gmail.com"
-              style={{
-                color: "#ff4c4c",
-                textDecoration: "none",
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "2px solid #ff4c4c",
-                backdropFilter: "blur(3px)",
-              }}
-            >
-              Email
-            </a>
-          </div>
+          {/* INSTRUCTOR BUTTON */}
+          <button
+            onClick={() => router.push("/instructor")}
+            style={{
+              flex: 1,
+              padding: "18px 0",
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              borderRadius: "40px",
+              border: "none",
+              backgroundColor: "#00B000",
+              color: "white",
+              cursor: "pointer",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+              transition: "0.3s",
+            }}
+          >
+            Clinical Instructor
+          </button>
         </div>
       </div>
     </div>
