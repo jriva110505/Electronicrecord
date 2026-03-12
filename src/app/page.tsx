@@ -1,9 +1,22 @@
 "use client";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   const router = useRouter();
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  const loginAdmin = () => {
+    if (username === "admin" && password === "admin123") {
+      router.push("/admin");
+    } else {
+      alert("Invalid admin credentials");
+    }
+  };
 
   return (
     <div
@@ -36,6 +49,27 @@ export default function Home() {
         }}
       />
 
+      {/* ADMIN BUTTON */}
+      <button
+        onClick={() => setShowAdmin(true)}
+        style={{
+          position: "absolute",
+          top: 20,
+          right: 20,
+          zIndex: 2,
+          padding: "10px 20px",
+          borderRadius: "20px",
+          border: "none",
+          background: "#16a34a",
+          color: "white",
+          fontWeight: "bold",
+          cursor: "pointer",
+          boxShadow: "0 4px 10px rgba(0,0,0,0.4)",
+        }}
+      >
+        Admin Login
+      </button>
+
       {/* Main Content */}
       <div
         style={{
@@ -47,9 +81,10 @@ export default function Home() {
           justifyContent: "center",
           alignItems: "center",
           textAlign: "center",
-          padding: "3rem",
+          padding: "clamp(1rem,4vw,3rem)",
           maxWidth: "1200px",
           margin: "0 auto",
+          width: "100%",
         }}
       >
         {/* Logo */}
@@ -58,19 +93,39 @@ export default function Home() {
           alt="NCF Logo"
           width={140}
           height={140}
-          style={{ marginBottom: "2rem" }}
+          style={{
+            width: "clamp(80px,20vw,140px)",
+            height: "auto",
+            marginBottom: "1.5rem",
+          }}
         />
 
         {/* Title */}
-        <h1 style={{ fontSize: "3rem", fontWeight: "bold", marginBottom: "1rem" }}>
+        <h1
+          style={{
+            fontSize: "clamp(1.8rem,5vw,3rem)",
+            fontWeight: "bold",
+            marginBottom: "1rem",
+          }}
+        >
           Naga College Foundation Inc.
         </h1>
 
-        <h2 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
+        <h2
+          style={{
+            fontSize: "clamp(1.2rem,4vw,2rem)",
+            marginBottom: "0.5rem",
+          }}
+        >
           Electronic Central Supplies Record
         </h2>
 
-        <p style={{ fontSize: "1.3rem", marginBottom: "3rem" }}>
+        <p
+          style={{
+            fontSize: "clamp(1rem,3vw,1.3rem)",
+            marginBottom: "2.5rem",
+          }}
+        >
           College of Health and Sciences
         </p>
 
@@ -78,27 +133,26 @@ export default function Home() {
         <div
           style={{
             display: "flex",
-            gap: "2rem",
+            gap: "1rem",
             width: "100%",
             maxWidth: "600px",
             justifyContent: "center",
+            flexWrap: "wrap",
           }}
         >
           {/* STUDENT BUTTON */}
           <button
             onClick={() => router.push("/students")}
             style={{
-              flex: 1,
-              padding: "18px 0",
-              fontSize: "1.2rem",
+              flex: "1 1 220px",
+              padding: "16px 0",
+              fontSize: "1.1rem",
               fontWeight: "bold",
               borderRadius: "40px",
               border: "none",
               backgroundColor: "#E6D85C",
               color: "black",
               cursor: "pointer",
-              boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
-              transition: "0.3s",
             }}
           >
             Student
@@ -108,23 +162,111 @@ export default function Home() {
           <button
             onClick={() => router.push("/instructor")}
             style={{
-              flex: 1,
-              padding: "18px 0",
-              fontSize: "1.2rem",
+              flex: "1 1 220px",
+              padding: "16px 0",
+              fontSize: "1.1rem",
               fontWeight: "bold",
               borderRadius: "40px",
               border: "none",
               backgroundColor: "#00B000",
               color: "white",
               cursor: "pointer",
-              boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
-              transition: "0.3s",
             }}
           >
             Clinical Instructor
           </button>
         </div>
       </div>
+
+      {/* ADMIN LOGIN MODAL */}
+      <AnimatePresence>
+        {showAdmin && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.7)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 50,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+              style={{
+                background: "white",
+                color: "black",
+                padding: "30px",
+                borderRadius: "20px",
+                width: "320px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                textAlign: "center",
+              }}
+            >
+              <h2>Admin Login</h2>
+
+              <input
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                style={{
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "1px solid #ccc",
+                }}
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "1px solid #ccc",
+                }}
+              />
+
+              <button
+                onClick={loginAdmin}
+                style={{
+                  padding: "10px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#16a34a",
+                  color: "white",
+                  cursor: "pointer",
+                }}
+              >
+                Login
+              </button>
+
+              <button
+                onClick={() => setShowAdmin(false)}
+                style={{
+                  padding: "8px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#ef4444",
+                  color: "white",
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
