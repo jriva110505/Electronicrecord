@@ -441,11 +441,10 @@ const procedureSupplies: Record<string, string[]> = {
     "IV Fluid", "IV Stand", "IV Administration Set", "Clean Gloves", "Arm Dummy"
   ],
 
-  "IV Discontinuing": [
+  "Discontinuing": [
   "IV Fluid",
   "Syringe",
-  "Cotton Balls",
-  "Cotton Balls with Alcohol",
+  "Cotton Balls", 
   "Micropore Tape",
   "Ovum Forceps",
   "IV Cannula",
