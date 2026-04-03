@@ -1,1126 +1,965 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { AnimatePresence, motion } from "framer-motion";
 
-interface Supply {
+interface Item {
+  id: number;
   name: string;
-  img: string;
-  stock: number;
-  variants?: string[];
+  level: string;
+  image?: string;
+  stock?: number;
 }
 
-const supplies: Supply[] = [
-  { name: "Kidney Basin", img: "/kidney.png", stock: 20 },
+interface CartItem extends Item {
+  qty: number;
+}
 
-  {
-    name: "Syringe",
-    img: "/syringes.png",
-    stock: 50,
-    variants: ["3cc", "5cc", "10cc"],
-  },
+export default function SuppliesPage() {
+  // Level selection
+    const [selectedLevel, setSelectedLevel] = useState<string>("");
+    const [search, setSearch] = useState("");
+    const [items, setItems] = useState<Item[]>([]);
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [toast, setToast] = useState("");
+    const [selectedRoom, setSelectedRoom] = useState<string | null>(null);  
+    const [roomBookings, setRoomBookings] = useState<any[]>([]);
+    const [showRoomModal, setShowRoomModal] = useState(false);
+    const [availabilityMsg, setAvailabilityMsg] = useState<string | null>(null);
+    const [startTime, setStartTime] = useState("");
+    const [endTime, setEndTime] = useState("");
 
-  { name: "Sterile Gloves", img: "/sterile.png", stock: 20 },
-];
+    const [showSemesterModal, setShowSemesterModal] = useState(false);
+    const [selectedSemester, setSelectedSemester] = useState("");
+    const [pendingLevel, setPendingLevel] = useState<string | null>(null);
+    const [checkedProcedures, setCheckedProcedures] = useState<string[]>([]);
+    const [selectedProcedure, setSelectedProcedure] = useState("");
+    const [checkedItems, setCheckedItems] = useState<string[]>([]);
+    const [selectedDate, setSelectedDate] = useState("");
+    const [selectedTime, setSelectedTime] = useState("");
+    const [processedBy, setProcessedBy] = useState("");
+    const [showVariantModal, setShowVariantModal] = useState(false);
+    const [selectedItemForVariant, setSelectedItemForVariant] = useState<Item | null>(null);
+    
 
-export default function Supplies() {
-  const [variantModal, setVariantModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Supply | null>(null);
-  const [selectedLevelForSemester, setSelectedLevelForSemester] = useState<string | null>(null);
-  const [showProcedureModal, setShowProcedureModal] = useState(false);
-  const [selectedProcedures, setSelectedProcedures] = useState<string[]>([]);
-  const [pendingLevel, setPendingLevel] = useState<string | null>(null);
-  const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
-  const [showSemesterModal, setShowSemesterModal] = useState(false);
-  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
-  const [cart, setCart] = useState<{ name: string; qty: number }[]>([]);
-  const [search, setSearch] = useState("");
+  // Receipt modal
   const [showReceipt, setShowReceipt] = useState(false);
-  const [email, setEmail] = useState("");
-
-  // Borrower info
   const [studentName, setStudentName] = useState("");
   const [instructorName, setInstructorName] = useState("");
   const [section, setSection] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
 
-  useEffect(() => {
-    const stored = localStorage.getItem("borrowerInfo");
-    if (stored) {
-      const data = JSON.parse(stored);
-      setStudentName(data.name || "");
-      setInstructorName(data.instructor || "");
-      setSection(data.course || "");
-    }
-  }, []);
+  const levels = ["All Levels", "1st Level", "2nd Level", "3rd Level", "4th Level", "Others", "Rooms"];
 
-  const suppliesByLevel: Record<string, Supply[]> = {
-    "1st level": [
-      { name: "Kidney Basin", img: "/kidney.png", stock: 20 },
-      { name: "Forceps", img: "/forcep.png", stock: 20 },
-      { name: "Clean Gloves", img: "/gloves.png", stock: 20 },
-      { name: "Catheter", img: "/chateter.png", stock: 20 },
+  const itemVariants: Record<string, string[]> = {
+  syringe: ["1cc", "3cc", "5cc", "10cc"],
+  "iv-cannula": ["18G", "20G", "22G"],
+};
+
+  const roomsData = [
+    { name: "STA 201" },
+    { name: "STA 202" },
+    { name: "STA 302" },
+    { name: "STA 304" },
+    { name: "STA 305" },
+    { name: "STA 401" },
+    { name: "ST 409A" },
+    { name: "ST 409B" },
+    { name: "ST 412" },
+    { name: "STA 501" },
+    { name: "STA 502" },
+    { name: "STA 503" },
+    { name: "MTV 305" },
+    { name: "MTV 401" },
+    { name: "MTV 402" },
+    { name: "MTV 404" },
+    { name: "MTV 405" },
+    { name: "NP1 Room"},
+    { name: "NP2 Room" },
+    { name: "OR/DR Room" },
+    { name: "MINI HOSPITAL" },
+    
+  ];
+
+ const proceduresByLevel: any = {
+  "1st Level": {
+  "HEALTH ASSESSMENT": [
+    {
+      name: "Skin Hair and Nails",
+      items: ["clean gloves", "penlight", "ruler", "alcohol", "magnifying glass"],
+    },
+    {
+      name: "Head and Neck",
+      items: ["gloves", "penlight", "alcohol", "stethoscope"],
+    },
+    {
+      name: "Ears Nose and Throat",
+      items: ["otoscope", "tuning fork", "ruler", "gloves", "alcohol", "penlight", "secondary watch"],
+    },
+    {
+      name: "Eyes",
+      items: ["ophthalmoscope", "snellen chart", "jaeger chart", "opaque card", "alcohol", "gloves", "cotton", "penlight"],
+    },
+    {
+      name: "Obtaining Health History",
+      items: ["face mask"],
+    },
+    {
+      name: "Vital Signs",
+      items: ["patient gown", "thermometer", "stethoscope", "blood pressure apparatus", "oximeter", "alcohol", "cotton"],
+    },
+    {
+      name: "Respiratory Assessment",
+      items: ["alcohol", "clean gloves", "stethoscope", "oximeter"],
+    },
+    {
+      name: "Cardiovascular Assessment",
+      items: ["alcohol", "cotton balls", "mask", "patient gown", "blood pressure apparatus"],
+    },
+    {
+      name: "Abdominal Assessment",
+      items: ["stethoscope"],
+    },
+  ],
+
+  "FUNDAMENTALS RD": [
+    {
+      name: "Nurse Patient Interaction",
+      items: ["thermometer", "cotton", "alcohol"],
+    },
+    {
+      name: "Vital Signs",
+      items: ["stethoscope", "blood pressure apparatus", "oximeter", "digital thermometer", "clean gloves", "alcohol"],
+    },
+    {
+      name: "Medical Asepsis",
+      items: ["alcohol", "orange stick", "soap", "towel"],
+    },
+    {
+      name: "Sterile Technique",
+      items: ["sterile gown", "sterile gloves", "medical cap", "mask"],
+    },
+    {
+      name: "Safe Patient Handling",
+      items: ["sterile gauze", "cotton", "alcohol", "kidney basin", "forceps", "micropore", "bed"],
+    },
+    {
+      name: "Fall Prevention",
+      items: ["restraints", "linen", "bed", "pillow", "clean gloves", "patient gown", "bouffant cap", "mask"],
+    },
+    {
+      name: "Handwashing",
+      items: ["alcohol", "tissue", "liquid soap", "orange wood stick", "lotion", "towel"],
+    },
+    {
+      name: "Gloving",
+      items: ["sterile gloves"],
+    },
+    {
+      name: "Wound Care",
+      items: ["betadine", "alcohol", "cotton", "bandage", "scissors", "micropore tape", "tape measure", "clean gloves", "sterile gloves"],
+    },
+    {
+      name: "Oral Care",
+      items: ["toothbrush", "toothpaste", "towel", "mouthwash", "tongue depressor", "cup", "penlight"],
+    },
+  ],
+},
+
+  "2nd Level": {
+    "1st Semester": [
       {
-  name: "Syringe",
-  img: "/syringes.png",
-  stock: 20,
-  variants: ["3cc", "5cc", "10cc"],
-},
-      { name: "Sterile Gloves", img: "/sterile.png", stock: 20 },
+        name: "DR TECH",
+        items: [
+          "Delivery table",
+          "Labor table",
+          "Blankets",
+          "Sterile gloves",
+          "Medical cap",
+          "Sterile drapes and gown",
+          "Umbilical cord clamp",
+          "Needle holder forceps",
+          "Curve artery forceps",
+          "Straight artery forceps",
+          "Sponge forceps",
+          "Gauze",
+          "Syringe 5cc",
+          "Surgical needle",
+          "Kidney basin",
+          "Linen",
+          "Kelly pad",
+        ],
+      },
+      {
+        name: "EINC",
+        items: [
+          "Mitten hands and feet",
+          "Hooded towels",
+          "Dry linen",
+          "Bonnet",
+          "Cotton balls",
+          "Sponge forceps",
+          "Syringe 5cc",
+          "Oxytocin",
+          "Plastic cord clamp",
+          "Surgical scissors",
+          "Kidney basin",
+          "Straight artery forceps",
+        ],
+      },
+      {
+        name: "IE",
+        items: [
+          "Sterile gloves",
+          "Vaginal speculum",
+          "Sterile lubricating jelly",
+          "Cotton balls",
+          "Sponge forceps",
+          "Kidney bowl",
+          "Penlight",
+        ],
+      },
+      {
+        name: "CATHETERIZATION",
+        items: [
+          "Sterile Foley catheter",
+          "Sterile gloves",
+          "Betadine",
+          "Straight artery forceps",
+          "Lubricant",
+          "Kidney basin",
+          "Syringe 1cc",
+          "Urinary bag",
+          "Blankets",
+        ],
+      },
+      {
+        name: "NEWBORN CARE",
+        items: [
+          "Droplight",
+          "Diaper",
+          "Weighing scale for baby",
+          "Measuring tape",
+          "Stethoscope",
+          "Thermometer",
+          "Bonnet",
+          "Eye ointment (erythromycin)",
+          "Vitamin K syringe",
+          "Linen for wrapping",
+        ],
+      },
+      {
+        name: "PERINEAL FLUSHING",
+        items: [
+          "Sterile antiseptic solution",
+          "Sterile water",
+          "Ovum forceps",
+          "Betadine",
+          "Sterile sanitary pad",
+          "Adult diaper",
+          "Kidney basin",
+          "Hypo tray",
+          "Draping sheet",
+          "Straight artery forceps",
+          "Sterile towel",
+          "Kelly pad",
+          "Water bucket",
+          "Mannequin",
+        ],
+      },
+      {
+        name: "LEOPOLDS MANEUVER",
+        items: [
+          "Examination bed",
+          "Clean sheet or drape",
+          "Pillow",
+          "Measuring tape",
+          "Stethoscope or fetal Doppler",
+          "Ultrasound gel",
+          "Setrile gloves",
+          "Alcohol",
+        ],
+      },
+      {
+        name: "BAG TECHNIQUE",
+        items: [
+          "PHN bag",
+          "Soap",
+          "Hand sanitizer",
+          "Measuring tape",
+          "Thermometer",
+          "BP apparatus",
+          "Glucometer",
+          "Test tube",
+          "Medicine dropper",
+          "Alcohol lamp",
+          "Test tube holder",
+          "Linen",
+          "Plastic linen",
+          "Paper linen",
+          "Cotton balls",
+          "Kidney basin",
+          "Straight artery forceps",
+          "Antiseptic solutions",
+          "Bandage scissors",
+          "Micropore tape",
+          "Gauze pad",
+          "Cord clamp",
+          "Syringe 3cc",
+          "Mask",
+          "Apron",
+        ],
+      },
     ],
-      "2nd level": [
-  { name: "BP Apparatus", img: "/bp.png", stock: 15 },
-  { name: "Stethoscope", img: "/stetos.png", stock: 15 },
-  { name: "Thermometer", img: "/termo.png", stock: 15 },
-  { name: "Nebulizer Machine", img: "/nebu.png", stock: 10 },
-  { name: "Suction Machine", img: "/suction.png", stock: 5 },
-  { name: "Suction Catheter", img: "/chateter.png", stock: 15 },
-  { name: "Sterile Gloves", img: "/sterile.png", stock: 30 },
-  { name: "Clean Gloves", img: "/gloves.png", stock: 30 },
-  { name: "Kidney Basin", img: "/kidney.png", stock: 20 },
-  { name: "Cotton Balls", img: "/cottons.png", stock: 40 },
-  { name: "Gauze", img: "/gauzer.png", stock: 40 },
-  { name: "Pulse Oximeter", img: "/pulser.png", stock: 10 },
-  { name: "Nasogastric Tube", img: "/ngtt.png", stock: 10 },
-  {
-    name: "Syringe",
-    img: "/syringes.png",
-    stock: 40,
-    variants: ["1cc", "3cc", "5cc", "10cc"],
-  },
-  { name: "Nebulizer Mask", img: "/mask.png", stock: 15 },
-  { name: "Oxygen Mask", img: "/oxygenmask.png", stock: 15 },
-  { name: "Nasal Cannula", img: "/nasal.png", stock: 15 },
-  { name: "Oxygen Tank", img: "/oxytank.png", stock: 5 },
-  { name: "IV Fluid", img: "/ivfluid.png", stock: 20 },
-  { name: "IV Administration Set", img: "/ivset.png", stock: 20 },
-  {
-  name: "IV Cannula",
-  img: "/ivcannula.png",
-  stock: 30,
-  variants: ["18G", "20G", "22G"]
-  },
-  { name: "IV Stand", img: "/ivstand.png", stock: 5 },
-  { name: "Micropore Tape", img: "/microtape.png", stock: 20 },
-  { name: "Bandage Scissors", img: "/bandagescisor.png", stock: 10 },
-  { name: "Ovum Forceps", img: "/forcep.png", stock: 10 },
-  { name: "Pocket Mask", img: "/pocketmask.png", stock: 10 },
-  { name: "CPR Table", img: "/cpr-table.png", stock: 5 },
-  { name: "Infant Resuscitation Table", img: "/infanttable.png", stock: 5 },
-  { name: "PPE Kit", img: "/ppekit.png", stock: 20 },
-  { name: "Delivery Table/Labor Table", img: "/deliverytable.png", stock: 5 },
-  { name: "Blankets", img: "/blanket.png", stock: 20 },
-  { name: "Hair Cap", img: "/nursecap.png", stock: 30 },
-  { name: "Sterile Drapes and Gown", img: "/drapesgown.png", stock: 20 },
-  { name: "Umbilical Cord Clamp", img: "/cordclamp.png", stock: 20 },
-  { name: "Surgical Scissors", img: "/surgicalscisor.png", stock: 15 },
-  { name: "Needle Holder Forceps", img: "/needleholderr.png", stock: 10 },
-  { name: "Curve Artery Forceps", img: "/curve-forceps.png", stock: 10 },
-  { name: "Straight Artery Forceps", img: "/straight-forceps.png", stock: 10 },
-  { name: "Sponge Forceps", img: "/sponge-forceps.png", stock: 10 },
-  { name: "Surgical Needle", img: "/surgical-needle.png", stock: 20 },
-  { name: "Linen", img: "/linen.png", stock: 20 },
-  { name: "Kelly Pad", img: "/kelly-pad.png", stock: 20 },
-  { name: "Mitten Hands", img: "/mitten-hands.png", stock: 20 },
-{ name: "Mitten Feets", img: "/mitten-feets.png", stock: 20 },
-{ name: "Hooded Towels", img: "/hooded-towel.png", stock: 20 },
-{ name: "Dry Linen", img: "/dry-linen.png", stock: 20 },
-{ name: "Bonnet", img: "/bonnet.png", stock: 20 },
-{ name: "Oxytocin", img: "/oxytocin.png", stock: 20 },
-{ name: "Plastic Cord Clamp", img: "/plastic-cord-clamp.png", stock: 20 },
-{ name: "Surgical Scissors", img: "/surgical-scissors.png", stock: 15 },
-{ name: "Vaginal Speculum", img: "/vaginal-speculum.png", stock: 10 },
-{ name: "Sterile Lubricating Jelly", img: "/lubricating-jelly.png", stock: 20 },
-{ name: "Pen Light", img: "/pen-light.png", stock: 15 }, 
-{ name: "Sterile Foley Catheter", img: "/foley-catheter.png", stock: 15 },
-{ name: "Antiseptic Solution (Betadine)", img: "/betadine.png", stock: 20 },
-{ name: "Cleansing Cherries", img: "/cleansing-cherries.png", stock: 20 },
-{ name: "Specimen Container", img: "/specimen-container.png", stock: 15 },
-{ name: "Urinary Bag", img: "/urinary-bag.png", stock: 15 },
-{ name: "Blanket for Draping", img: "/draping-blanket.png", stock: 15 },
-{ name: "Sterile Water", img: "/sterile-water.png", stock: 20 },
-{ name: "Sterile Antiseptic Solution", img: "/sterile-antiseptic.png", stock: 20 },
-{ name: "Sterile Water Bottle", img: "/sterile-water-bottle.png", stock: 20 },
-{ name: "Pick Up Forceps", img: "/pickup-forceps.png", stock: 15 },
-{ name: "Sterile Sanitary Pad", img: "/sanitary-pad.png", stock: 20 },
-{ name: "Hypo Tray", img: "/hypo-tray.png", stock: 10 },
-{ name: "Draping Sheet", img: "/draping-sheet.png", stock: 15 },
-{ name: "Rubber Sheet", img: "/rubber-sheet.png", stock: 15 },
-{ name: "Sterile Towel", img: "/sterile-towel.png", stock: 20 },
-{ name: "Water Bucket", img: "/water-bucket.png", stock: 10 },
-{ name: "Mannequin", img: "/mannequin.png", stock: 5 },
-{ name: "Examination Bed", img: "/examination-bed.png", stock: 5 },
-{ name: "Clean Sheet", img: "/clean-sheet.png", stock: 20 },
-{ name: "Pillow", img: "/pillow.png", stock: 10 },
-{ name: "Measuring Tape", img: "/measuring-tape.png", stock: 10 },
-{ name: "Ultrasound Gel", img: "/ultrasound-gel.png", stock: 15 },
-{ name: "Alcohol or Hand Sanitizer", img: "/alcohol-sanitizer.png", stock: 20 },
-{ name: "PHN Bag", img: "/phn-bag.png", stock: 10 },
-{ name: "Soap", img: "/soap.png", stock: 20 },
-{ name: "Sanitizer", img: "/sanitizer.png", stock: 20 },
-{ name: "Glucometer", img: "/glucometer.png", stock: 10 },
-{ name: "Test Tube", img: "/test-tube.png", stock: 20 },
-{ name: "Medicine Dropper", img: "/medicine-dropper.png", stock: 15 },
-{ name: "Alcohol Lamp", img: "/alcohol-lamp.png", stock: 10 },
-{ name: "Test Tube Holder", img: "/test-tube-holder.png", stock: 10 },
-{ name: "Plastic Linen", img: "/plastic-linen.png", stock: 20 },
-{ name: "Paper Linen", img: "/paper-linen.png", stock: 20 },
-{ name: "Mask", img: "/mask.png", stock: 20 },
-{ name: "Apron", img: "/apron.png", stock: 15 },
 
-// 2nd SEMESTER
-// last edit
-{ name: "Normal Saline", img: "/normal-saline.png", stock: 20 },
-{ name: "Connecting Tubing", img: "/connecting-tubing.png", stock: 15 },
-{ name: "Suction Canister", img: "/suction-canister.png", stock: 10 },
-{ name: "Collection Bottle", img: "/collection-bottle.png", stock: 10 },
-{ name: "Tissue", img: "/tissue.png", stock: 20 },
-{ name: "Feeding Syringe", img: "/feeding-syringe.png", stock: 15 },
-{ name: "Enteral Feeding Formula", img: "/enteral-feeding.png", stock: 10 },
-{ name: "Medical Tape", img: "/medical-tape.png", stock: 20 },
-{ name: "Disposable Pad", img: "/disposable-pad.png", stock: 15 },
-{ name: "Pressure Regulator", img: "/pressure-regulator.png", stock: 10 },
-{ name: "Humidifier Bottle", img: "/humidifier-bottle.png", stock: 10 },
-{ name: "Oxygen Tubing", img: "/oxygen-tubing.png", stock: 20 },
-{ name: "Partial Rebreather Mask", img: "/partial-rebreather.png", stock: 10 },
-{ name: "Non-Rebreather Mask", img: "/non-rebreather.png", stock: 10 },
-{ name: "Venturi Mask", img: "/venturi-mask.png", stock: 10 },
-{ name: "Oxygen Wrench", img: "/oxygen-wrench.png", stock: 10 },
-{ name: "Cotton Balls", img: "/alcohol-cotton.png", stock: 20 },
-{ name: "Canister", img: "/canister.png", stock: 10 }
-
-
-],
-    "3rd level": [
-  { name: "PPE", img: "/ppe.png", stock: 20 },
-  { name: "Sterile Gown", img: "/sterile-gown.png", stock: 20 },
-  { name: "Sterile Cap", img: "/sterile-cap.png", stock: 20 },
-  { name: "Sterile Mask", img: "/mask.png", stock: 20 },
-  { name: "Sterile Gloves", img: "/sterile.png", stock: 30 },
-  { name: "Cherry Balls with Cleanser", img: "/cleansing-cherries.png", stock: 20 },
-  { name: "Laparotomy Gauze Pack", img: "/gauze-pack.png", stock: 20 },
-  { name: "Cherry Balls with 10% Betadine Antiseptic", img: "/betadine.png", stock: 20 },
-  { name: "Sterile Drapes", img: "/drapes-gown.png", stock: 20 },
-  { name: "Sterile Basin", img: "/hypo-tray.png", stock: 15 },
-  { name: "Surgical Scissors", img: "/scissors.png", stock: 15 },
-  { name: "Forceps", img: "/forcep.png", stock: 15 },
-  { name: "Needle Holder", img: "/needle-holder.png", stock: 10 },
-  { name: "Scalpel Handle", img: "/scalpel.png", stock: 10 },
-  { name: "Antimicrobial Soap", img: "/soap.png", stock: 20 },
-  { name: "Sterile Scrub Brush with Nail Cleaner", img: "/scrub-brush.png", stock: 20 },
-  { name: "Sterile Towel", img: "/sterile-towel.png", stock: 20 }
-],
-    "4th level": [
-  {
-  name: "IV Cannula",
-  img: "/iv-cannula.png",
-  stock: 30,
-  variants: ["18G", "20G", "22G"]
-  },
-  { name: "Cotton Balls", img: "/cotton.png", stock: 50 },
-  { name: "IV Fluid", img: "/ivfluid.png", stock: 20 },
-  { name: "Mannequin", img: "/mannequin.png", stock: 5 },
-  { name: "CPR Mask", img: "/pocket-mask.png", stock: 10 },
-  { name: "Triangular Bandage", img: "/bandage.png", stock: 20 },
-
-  { name: "Endotracheal Tubes", img: "/et-tube.png", stock: 10 },
-  { name: "Bag-Valve Mask", img: "/bag-valve-mask.png", stock: 10 },
-  { name: "Capnography Adapter", img: "/capnography.png", stock: 10 },
-  { name: "Laryngoscope Set", img: "/laryngoscope.png", stock: 5 },
-  { name: "Medication Demonstration Kit", img: "/med-kit.png", stock: 5 },
-  { name: "IV Start Pack", img: "/iv-set.png", stock: 10 },
-  { name: "Fluid Bag", img: "/iv-fluid.png", stock: 10 },
-  { name: "Syringe", img: "/syringes.png", stock: 20 },
-  { name: "IV Tubing", img: "/iv-set.png", stock: 20 },
-{ name: "Tourniquet", img: "/tourniquet.png", stock: 15 },
-{ name: "Alcohol Swabs", img: "/alcohol-cotton.png", stock: 30 },
-{ name: "Sterile Gauze", img: "/gauzer.png", stock: 30 },
-{ name: "Adhesive Tape", img: "/medical-tape.png", stock: 20 },
-{ name: "Transparent Dressing", img: "/dressing.png", stock: 20 },
-{ name: "Disposable Gloves", img: "/gloves.png", stock: 30 },
-{ name: "Face Mask", img: "/mask.png", stock: 30 },
-{ name: "Sharps Container", img: "/sharps.png", stock: 10 },
-{ name: "Hand Sanitizer", img: "/sanitizer.png", stock: 20 },
-{ name: "Plaster or Bandage", img: "/bandage.png", stock: 20 },
-{ name: "Tape Measure", img: "/measuring-tape.png", stock: 15 },
-{ name: "Mannequin Arm", img: "/mannequin.png", stock: 5 },
-],
-    Others: [
-      
-      { name: "Alcohol Bottle", img: "/alcohol.png", stock: 30 },
-      { name: "Bandage", img: "/bandage.png", stock: 40 },
-    ],
-  };
-
-  const procedures: Record<string, Record<string, string[]>> = {
-  "1st level": {
-    "1st Semester": [
-      "to add",
-      "to add",
-      "to add",
-      
-    ],
     "2nd Semester": [
-      "to add",
-      "to add",
-      "to add",
+      {
+        name: "CPR",
+        items: ["Table (baby)", "Pocket mask", "Setrile gloves"],
+      },
+      {
+        name: "FBAO (CONSCIOUS)",
+        items: ["Mannequin", "Setrile gloves"],
+      },
+      {
+        name: "FBAO (UNCONSCIOUS)",
+        items: ["Setrile gloves"],
+      },
+      {
+        name: "AR",
+        items: ["Infant mannequin"],
+      },
+      {
+        name: "IV DISCONTINUING",
+        items: [
+          "IV fluid",
+          "Syringe 3cc",
+          "Cotton balls",
+          "Alcohol",
+          "Micropore tape",
+          "Ovum forceps",
+          "IV cannula",
+          "Bandage scissors",
+          "Arm dummy",
+        ],
+      },
+      {
+        name: "SETTING UP",
+        items: [
+          "IV fluid",
+          "IV stand",
+          "IV administration set",
+          "Setrile gloves",
+          "Arm dummy",
+        ],
+      },
+      {
+        name: "ADMINISTERING OXYGEN",
+        items: [
+          "Oxygen tank",
+          "Flowmeter",
+          "Pressure regulator",
+          "Humidifier bottle with sterile water",
+          "Nasal cannula",
+          "Simple face mask",
+          "Pulse oximeter",
+        ],
+      },
+      {
+        name: "NEBULIZATION",
+        items: [
+          "Nebulizer machine",
+          "Nebulizer mask or mouthpiece",
+          "Prescribed respiratory medication",
+          "Normal saline solution",
+          "Syringe 3cc",
+          "Setrile gloves",
+          "Kidney basin",
+        ],
+      },
+      {
+        name: "SUCTIONING",
+        items: [
+          "Suction machine",
+          "Suction catheter",
+          "Sterile water",
+          "Normal saline solution",
+          "Connecting tubing",
+          "Suction canister",
+          "Personal protective equipment (PPE)",
+        ],
+      },
+      {
+        name: "NGT FEEDING",
+        items: [
+          "Nasogastric tube",
+          "Feeding syringe",
+          "Enteral feeding formula",
+          "Glass of clean or sterile water",
+          "Stethoscope",
+          "Setrile gloves",
+        ],
+      },
+    ],
+  },
 
-    ], 
-  },
-  "2nd level": {
+  "3rd Level": {
     "1st Semester": [
-      "Dr tech",
-      "EINC",
-      "IE",
-      "CATHETERIZATION",
-      "NEWBORN CARE",
-      "PERINEAL FLUSHING",
-      "LEOPOLDS MANEUVER",
-      "BAG TECHNIQUE",
+      {
+        name: "Skin prep",
+        items: [
+          "Personal protective equipment (PPE)",
+          "Sterile gown",
+          "Sterile cap",
+          "Sterile mask",
+          "Sterile gloves",
+          "Laparotomy gauze pack",
+          "Betadine",
+        ],
+      },
+      {
+        name: "Sterile field prep",
+        items: [
+          "Sterile drapes",
+          "Sterile gloves",
+          "Sterile gown",
+          "Sterile basin",
+          "Scissors",
+          "Straight artery forceps",
+          "Needle holder",
+          "Scalpel handle",
+        ],
+      },
+      {
+        name: "Surgical scrubbing",
+        items: [
+          "Scrub sink with running water",
+          "Antimicrobial soap",
+          "Sterile scrub brush with nail cleaner",
+          "Sterile towel",
+          "Surgical cap",
+          "Surgical mask",
+          "Sterile gown",
+          "Sterile gloves",
+        ],
+      },
     ],
-    "2nd Semester": [
-      "CPR",
-      "Fbao (conscious)",
-      "Fbao (unconscious)",
-      "AR",
-      "Discontinuing",
-      "Setting up",
-      "Oxygen",
-      "Nebulization",
-      "Suctioning",
-      "NGT Feeding",
-    ],
+    "2nd Semester": [],
   },
-  "3rd level": {
+
+  "4th Level": {
     "1st Semester": [
-      "Skin Prep",
-      "Sterile Field Prep",
-      "Surgical Scrubbing",
+      {
+        name: "IV therapy",
+        items: [
+          "IV cannula",
+          "IV fluid",
+          "IV tubing",
+          "Tourniquet",
+          "Alcohol swabs",
+          "Cotton balls",
+          "Sterile gauze",
+          "Adhesive tape",
+          "Transparent dressing",
+          "Kidney basin",
+          "Disposable gloves",
+          "Face mask",
+          "Sharps container",
+          "IV stand",
+          "Hand sanitizer",
+          "Plaster or bandage",
+          "Mannequin arm",
+        ],
+      },
+      {
+        name: "BLS",
+        items: ["Adult mannequin", "CPR mask"],
+      },
+      {
+        name: "Bandaging",
+        items: ["Triangular bandage"],
+      },
     ],
+
     "2nd Semester": [
-      "none",
+      {
+        name: "ACLS",
+        items: [
+          "Mannequin",
+          "Endotracheal tubes",
+          "Bag-valve masks",
+          "Capnography adapters",
+          "Laryngoscope set",
+          "Medication demonstration kits",
+          "IV start packs",
+          "Fluid bags",
+          "Syringe 3cc",
+        ],
+      },
     ],
   },
-  "4th level": {
-  "1st Semester": [
-    "IV Therapy",
-    "BLS",
-    "Bandaging",
-  ],
-  "2nd Semester": [
-    "ACLS",
-  ],
-},
 };
 
-const procedureSupplies: Record<string, string[]> = {
-  
-  // 1st Semester
-  "Dr tech": [
-  "Delivery Table/Labor Table",
-  "Blankets",
-  "Sterile Gloves",
-  "Hair Cap",
-  "Sterile Drapes and Gown",
-  "Umbilical Cord Clamp",
-  "Surgical Scissors",
-  "Needle Holder Forceps",
-  "Curve Artery Forceps",
-  "Straight Artery Forceps",
-  "Sponge Forceps",
-  "Gauze",
-  "Syringe",
-  "Surgical Needle",
-  "Kidney Basin",
-  "Linen",
-  "Kelly Pad"
+const toggleProcedure = (proc: string) => {
+  setCheckedProcedures((prev) =>
+    prev.includes(proc)
+      ? prev.filter((p) => p !== proc)
+      : [...prev, proc]
+  );
 
-  ],
-
-  "EINC": [
-    "Mitten Hands", "Mitten Feets", "Hooded Towels", "Dry Linen", "Bonnet",
-    "Cotton Balls", "Sponge Forceps", "Syringe", "Oxytocin",
-    "Plastic Cord Clamp", "Surgical Scissors", "Kidney Basin",
-    "Straight Artery Forceps"
-  ],
-
-  "IE": [
-    "Sterile Gloves", "Vaginal Speculum", "Sterile Lubricating Jelly",
-    "Cotton Balls", "Sponge Forceps", "Kidney Basin", "Pen Light"
-  ],
-
-  "CATHETERIZATION": [
-    "Sterile Foley Catheter", "Sterile Gloves", "Antiseptic Solution",
-    "Cleansing Cherries", "Forceps", "KY Jelly", "Kidney Basin",
-    "Specimen Container", "Syringe", "Urinary Bag", "Blanket for Draping",
-    "Sterile Water"
-  ],
-
-  "NEWBORN CARE": [
-    "Droplight", "Diaper", "Weighing Scale", "Measuring Tape",
-    "Stethoscope", "Thermometer", "Bonnet", "Baby Clothing",
-    "Eye Ointment", "Syringe", "Linen"
-  ],
-
-"PERINEAL FLUSHING": [
-  "Sterile Antiseptic Solution",
-  "Sterile Water",
-  "Ovum Forceps",
-  "Pick Up Forceps",
-  "Sterile Sanitary Pad",
-  "Kidney Basin",
-  "Hypo Tray",
-  "Clean Gloves",
-  "Draping Sheet",
-  "Rubber Sheet",
-  "Cleansing Cherries",
-  "Sterile Towel",
-  "Kelly Pad",
-  "Water Bucket",
-  "Mannequin"
-],
-
-  "LEOPOLDS MANEUVER": [
-  "Examination Bed",
-  "Clean Sheet",
-  "Pillow",
-  "Measuring Tape",
-  "Stethoscope",
-  "Clean Gloves",
-  "Ultrasound Gel",
-  "Alcohol or Hand Sanitizer"
-],
-
-  "BAG TECHNIQUE": [
-    "PHN Bag", "Soap", "Sanitizer", "Measuring Tape", "Thermometer",
-    "BP Apparatus", "Glucometer", "Test Tube", "Medicine Dropper",
-    "Alcohol Lamp", "Test Tube Holder", "Linen", "Plastic Linen",
-    "Paper Linen", "Cotton Balls", "Kidney Basin", "Straight Forceps",
-    "Curve Forceps", "Antiseptic Solutions", "Bandage Scissors",
-    "Micropore Tape", "Gauze", "Cord Clamp", "Syringe", "Sterile Gloves",
-    "Mask", "Apron"
-  ],
-
-  // 2nd Semester
-  "Suctioning": [
-     "Suction Machine",
-  "Suction Catheter",
-  "Sterile Gloves",
-  "Sterile Water",
-  "Normal Saline",
-  "Connecting Tubing",
-  "Suction Canister",
-  "Collection Bottle",
-  "PPE Kit",
-  "Tissue",
-  "Gauze",
-  "Pulse Oximeter",
-  "Kidney Basin"
-  ],
-
-  "NGT Feeding": [
-    "Nasogastric Tube", "Feeding Syringe", "Enteral Feeding Formula",
-    "Sterile Water", "Kidney Basin", "Stethoscope", "Tape", "Gloves",
-    "Towel"
-  ],
-
-  "Nebulization": [
-    "Nebulizer Machine", "Nebulizer Mask", "Nebulizer Cup",
-    "Prescribed Medication", "Normal Saline", "Sterile Water",
-    "Tubing", "Clean Gloves", "Cotton Balls", "Sterile Syringe",
-    "Tissue or Towel", "Kidney Basin"
-  ],
-
-  "Administering Oxygen": [
-    "Oxygen Tank", "Pressure Regulator", "Humidifier Bottle",
-    "Oxygen Tubing", "Nasal Cannula", "Simple Face Mask", "Partial Rebreather Mask",
-    "Non-Rebreather Mask", "Venturi Mask", "Pulse Oximeter", "Oxygen Wrench"
-  ],
-
-  "Setting up IV": [
-    "IV Fluid", "IV Stand", "IV Administration Set", "Clean Gloves", "Arm Dummy"
-  ],
-
-  "Discontinuing": [
-  "IV Fluid",
-  "Syringe",
-  "Cotton Balls", 
-  "Micropore Tape",
-  "Ovum Forceps",
-  "IV Cannula",
-  "Bandage Scissors",
-  "Canister",
-  "Mannequin"
-],
-
-  "FBAO (Conscious)": ["Clean Gloves"],
-
-  "FBAO (Unconscious)": ["Clean Gloves"],
-
-  "CPR": ["Infant Resuscitation Table", "CPR Table", "Pocket Mask", "Clean Gloves"],
-
-// 3rd Level Procedures
-
-"Skin Prep": [
-  "PPE",
-  "Sterile Gown",
-  "Sterile Cap",
-  "Sterile Mask",
-  "Sterile Gloves",
-  "Cherry Balls with Cleanser",
-  "Laparotomy Gauze Pack",
-  "Cherry Balls with 10% Betadine Antiseptic"
-],
-
-"Sterile Field Prep": [
-  "Sterile Drapes",
-  "Sterile Gloves",
-  "Sterile Gown",
-  "Sterile Basin",
-  "Sterile Cap",
-  "Scissors",
-  "Forceps",
-  "Needle Holder",
-  "Scalpel Handle"
-],
-
-"Surgical Scrubbing": [
-  "Scrub Sink with Running Water",
-  "Antimicrobial Soap",
-  "Sterile Scrub Brush with Nail Cleaner",
-  "Sterile Towel",
-  "Surgical Cap",
-  "Surgical Mask",
-  "Sterile Gown",
-  "Sterile Gloves"
-],
-
-// 4th Level Procedures
-
-"IV Therapy": [
-  "IV Cannula",
-  "IV Fluid",
-  "IV Tubing",
-  "Tourniquet",
-  "Alcohol Swabs",
-  "Cotton Balls",
-  "Sterile Gauze",
-  "Adhesive Tape",
-  "Transparent Dressing",
-  "Kidney Basin",
-  "Disposable Gloves",
-  "Face Mask",
-  "Sharps Container",
-  "IV Stand",
-  "Hand Sanitizer",
-  "Plaster or Bandage",
-  "Tape Measure",
-  "Mannequin Arm"
-],
-
-"BLS": [
-  "Adult Mannequin",
-  "CPR Mask"
-],
-
-"Bandaging": [
-  "Triangular Bandage"
-],
-
-"ACLS": [
-  "Mannequin",
-  "Endotracheal Tubes",
-  "Bag-Valve Mask",
-  "Capnography Adapter",
-  "Laryngoscope Set",
-  "Medication Demonstration Kit",
-  "IV Start Pack",
-  "Fluid Bag",
-  "Syringe"
-],
-
+  setSelectedProcedure(proc); // 👈 show materials when clicked
 };
 
-
-  // CART FUNCTIONS
-  const addToCart = (item: Supply) => {
-  if (item.variants) {
-    setSelectedItem(item);
-    setVariantModal(true);
-    return;
+const getSelectedProcedures = () => {
+  if (!selectedLevel || !selectedSemester || checkedProcedures.length === 0) {
+    return null;
   }
 
-  addItemToCart(item.name);
+  const levelData = proceduresByLevel[selectedLevel];
+  if (!levelData) return null;
+
+  let procedures = [];
+
+  // 1st LEVEL uses categories (HEALTH ASSESSMENT / FUNDAMENTALS RD)
+  if (selectedLevel === "1st Level") {
+    procedures = levelData[selectedSemester] ?? [];
+  } 
+  else {
+    // Other levels use semesters
+    procedures = levelData[selectedSemester] ?? [];
+  }
+
+  return procedures.filter((p: any) => checkedProcedures.includes(p.name));
 };
 
-  const addItemToCart = (name: string) => {
-  setCart((prev) => {
-    const exists = prev.find((i) => i.name === name);
-
-    if (exists) {
-      return prev.map((i) =>
-        i.name === name ? { ...i, qty: i.qty + 1 } : i
-      );
-    }
-
-    return [...prev, { name, qty: 1 }];
-  });
-};
-
-  const increase = (name: string) => {
-    const supply = Object.values(suppliesByLevel).flat().find((i) => i.name === name);
-    if (!supply || supply.stock <= 0) return;
-    supply.stock--;
-    setCart((prev) => prev.map((i) => (i.name === name ? { ...i, qty: i.qty + 1 } : i)));
+  useEffect(() => {
+  const load = () => {
+    const stored = JSON.parse(localStorage.getItem("roomBookings") || "[]");
+    setRoomBookings(stored);
   };
 
-  const decrease = (name: string) => {
-    const supply = Object.values(suppliesByLevel).flat().find((i) => i.name === name);
-    if (supply) supply.stock++;
+  load();
+
+  const interval = setInterval(load, 3000);
+
+  return () => clearInterval(interval);
+}, []);
+
+const addVariantToCart = (variant: string) => {
+  if (!selectedItemForVariant) return;
+
+  const itemWithVariant = {
+    ...selectedItemForVariant,
+    name: `${selectedItemForVariant.name} (${variant})`,
+  };
+
+  addToCart(itemWithVariant);
+
+  setShowVariantModal(false);
+  setSelectedItemForVariant(null);
+};
+  
+  // Fetch items
+  useEffect(() => {
+    async function fetchItems() {
+      try {
+        const res = await fetch("https://dbsupplyrecord-2.onrender.com/items");
+        const data = await res.json();
+        setItems(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    fetchItems();
+  }, []);
+
+  const selectedProcs = getSelectedProcedures();
+  
+  const requiredItems = selectedProcs
+  ? selectedProcs.flatMap((p: any) => p.items)
+  : [];
+  
+const filteredItems = items
+  .filter((item) => {
+    // ✅ LEVEL FILTER
+    if (
+      selectedLevel !== "All Levels" &&
+      selectedLevel !== "Rooms" &&
+      item.level?.toLowerCase() !== selectedLevel.toLowerCase()
+    ) {
+      return false;
+    }
+
+    // ✅ If no procedure selected → show all
+    if (!requiredItems.length) return true;
+
+    // ✅ MATCH ITEMS (safe + flexible)
+    return requiredItems.some((needed: string) => {
+      const itemName = item.name?.toLowerCase().trim();
+      const neededName = needed.toLowerCase().trim();
+
+      return (
+        itemName.includes(neededName) ||
+        neededName.includes(itemName)
+      );
+    });
+  })
+  .filter((item) =>
+    item.name.toLowerCase().includes(search.toLowerCase())
+  )
+  .sort((a, b) => a.name.localeCompare(b.name));
+  
+  // Cart actions
+const openReceipt = () => {
+  const stored = localStorage.getItem("borrowerInfo");
+
+  if (stored) {
+    const data = JSON.parse(stored);
+
+    setStudentName(data.name || "");
+    setInstructorName(data.instructor || "");
+    setSection(data.course || "");
+  }
+
+  setShowReceipt(true);
+};
+
+useEffect(() => {
+  const stored = localStorage.getItem("borrowerInfo");
+
+  if (stored) {
+    const data = JSON.parse(stored);
+
+    setStudentName(data.name || "");
+    setInstructorName(data.instructor || "");
+    setSection(data.course || "");
+
+    // ✅ NEW
+    setSelectedDate(data.date || "");
+    setSelectedTime(data.time || "");
+  }
+}, []);
+
+  const addToCart = (item: Item) => {
+    if (!item.stock || item.stock <= 0) {
+      showToast("Out of stock!");
+      return;
+    }
+    setCart((prev) => {
+      const existing = prev.find((c) => c.id === item.id);
+      if (existing) {
+        if (existing.qty >= item.stock!) {
+          showToast("Max stock reached");
+          return prev;
+        }
+        return prev.map((c) => (c.id === item.id ? { ...c, qty: c.qty + 1 } : c));
+      }
+      return [...prev, { ...item, qty: 1 }];
+    });
+  };
+
+  const updateQty = (id: number, change: number) => {
     setCart((prev) =>
-      prev.map((i) => (i.name === name ? { ...i, qty: i.qty - 1 } : i)).filter((i) => i.qty > 0)
+      prev
+        .map((c) => {
+          if (c.id !== id) return c;
+          const newQty = c.qty + change;
+          if (newQty <= 0) return null;
+          if (newQty > (c.stock ?? 0)) return c;
+          return { ...c, qty: newQty };
+        })
+        .filter(Boolean) as CartItem[]
     );
   };
 
-  const checkout = () => {
-    setShowReceipt(true);
+  const clearCart = () => setCart([]);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2000);
   };
 
-  const sendEmail = async () => {
-    try {
-      await fetch("/reciept", {
-        method: "POST",
+ const handleCheckout = async () => {
+  try {
+    // 🔻 Deduct stock
+    for (const item of cart) {
+      await fetch(`https://dbsupplyrecord-2.onrender.com/items/${item.id}/remove-stock`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentName, instructorName, section, items: cart, email }),
+        body: JSON.stringify({ amount: item.qty }),
       });
-      alert("Receipt sent to " + email);
-      setCart([]);
-      setShowReceipt(false);
-      setEmail("");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to send email");
     }
+
+    // 🔥 ALWAYS SAVE (THIS IS THE FIX)
+    const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
+
+    const newBorrow = {
+  id: Date.now(),
+  studentName,
+  instructorName,
+  section,
+  email: studentEmail, // ✅ ADD THIS
+  items: cart,
+  date: new Date().toISOString(),
+  issuedBy: processedBy,
+  returned: false,
+  approved: false, // ✅ NEW FLAG
+};
+
+    localStorage.setItem(
+      "borrowHistory",
+      JSON.stringify([...existing, newBorrow])
+    );
+
+
+    // Reset
+    setCart([]);
+    setShowReceipt(false);
+
+    const refresh = await fetch("https://dbsupplyrecord-2.onrender.com/items");
+    setItems(await refresh.json());
+
+  } catch (err) {
+    console.error(err);
+
+    // 🔥 EVEN IF ERROR → STILL SAVE
+    const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
+
+    const newBorrow = {
+        id: Date.now(),
+        studentName,
+        instructorName,
+        section,
+        email: studentEmail, // ✅ ADD THIS
+        items: cart,
+        date: new Date().toISOString(),
+        issuedBy: processedBy,
+        returned: false,
+        approved: false, // ✅ NEW FLAG
+      };
+
+    localStorage.setItem(
+      "borrowHistory",
+      JSON.stringify([...existing, newBorrow])
+    );
+
+    showToast("Saved locally, but checkout failed ❌");
+  }
+};
+
+
+     const isRoomAvailable = (room: string, date: string, start: string, end: string) => {
+    return !roomBookings.some((b) => {
+        if (b.done === true) return false; //
+      if (b.room !== room || b.date !== date) return false;
+
+      const newStart = new Date(`${date}T${start}`);
+      const newEnd = new Date(`${date}T${end}`);
+      const existingStart = new Date(`${b.date}T${b.start}`);
+      const existingEnd = new Date(`${b.date}T${b.end}`);
+
+      return (
+        (newStart >= existingStart && newStart < existingEnd) ||
+        (newEnd > existingStart && newEnd <= existingEnd) ||
+        (newStart <= existingStart && newEnd >= existingEnd)
+      );
+    });
+  };
+  // Date: 2024-06-01
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   };
 
-  // Filter supplies by search
-  const filteredSupplies =
-  selectedLevel && search
-    ? suppliesByLevel[selectedLevel].filter((item) =>
-        item.name.toLowerCase().includes(search.toLowerCase())
-      )
-    : selectedLevel
-    ? suppliesByLevel[selectedLevel].filter((item) =>
-        selectedProcedures.length
-          ? selectedProcedures.some((proc) => procedureSupplies[proc]?.includes(item.name))
-          : true
-      )
-    : [];
+  const today = formatDate(new Date());
 
-  function handleLevelClick(level: string) {
-  setPendingLevel(level);
-  setSelectedLevelForSemester(level);
-  setSelectedSemester(null);
-  setSelectedProcedures([]);
-  setShowSemesterModal(true);
-}
+  const now = new Date();
+  const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
 
+  const isSlotBooked = (room: string, date: string, slot: string) => {
+    if (!date) return false;
+
+    const [start, end] = slot.split("-");
+
+    return roomBookings.some((b) => {
+      if (b.room !== room || b.date !== date) return false;
+      if (b.done) return false;
+
+      const newStart = new Date(`${date}T${start}`);
+      const newEnd = new Date(`${date}T${end}`);
+      const existingStart = new Date(`${b.date}T${b.start}`);
+      const existingEnd = new Date(`${b.date}T${b.end}`);
+
+      return (
+        (newStart >= existingStart && newStart < existingEnd) ||
+        (newEnd > existingStart && newEnd <= existingEnd) ||
+        (newStart <= existingStart && newEnd >= existingEnd)
+      );
+    });
+  };
+
+const isRoomAvailableNow = (room: string) => {
+  const now = new Date();
+
+  return !roomBookings.some((b) => {
+    if (b.room !== room || b.done) return false; // ✅ skip done bookings
+
+    const start = new Date(`${b.date}T${b.start}`);
+    const end = new Date(`${b.date}T${b.end}`);
+
+    return now >= start && now <= end;
+  });
+};
+
+
+
+useEffect(() => {
+  if (selectedLevel) {
+    setShowSemesterModal(false);
+  }
+}, [selectedLevel]);
+
+  // Level selection page
+if (!selectedLevel) {
   return (
-    <div style={{ minHeight: "100vh", position: "relative" }}>
-      {/* Background */}
-      <Image src="/green.jpg" alt="Background" fill style={{ objectFit: "cover" }} />
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} />
+    <div
+     style={{
+    minHeight: "100vh",
+    backgroundImage: "url('/green.jpg')",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  }}
+    >
+      {/* Optional overlay for better readability */}
+      <div
+        style={{
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(135deg, rgba(51, 41, 41, 0.6), rgba(34,197,94,0.3))",
+      backdropFilter: "blur(6px)",
+    }}
+      />
+
+      <motion.button
+    whileHover={{ scale: 1.1 }}
+    whileTap={{ scale: 0.9 }}
+    onClick={() => {
+      window.history.back();
+      setSelectedLevel("");
+      setPendingLevel("");
+      setCheckedProcedures([]);
+      setSelectedSemester("");
+    }}
+    style={{
+      position: "absolute",
+      top: 20,
+      right: 20,
+      zIndex: 2,
+      padding: "10px 16px",
+      borderRadius: 12,
+      border: "none",
+      background: "rgba(255, 255, 255, 0.9)",
+      color: "#099c09",
+      fontWeight: 600,
+      cursor: "pointer",
+      backdropFilter: "blur(10px)",
+      boxShadow: "0 8px 20px rgba(0,0,0,0.2)",
+    }}
+  >
+    ← Back
+  </motion.button>
+
+      <div
+        style={{
+          position: "relative",
+          textAlign: "center",
+          zIndex: 1,
+        }}
+      >
+        <h1
+          style={{
+            marginBottom: 30,
+            fontSize: 35,
+            fontWeight: 600,
+            letterSpacing: 1,
+            color: "#ffffff",
+          }}
+        >
+          WHAT’S YOUR YEAR LEVEL?
+        </h1>
+
+        <p style={{ color: "#00f974", marginBottom: 20 }}>
+      Choose your year level to continue
+    </p>
 
       <div
   style={{
-    position: "relative",
-    zIndex: 2,
     display: "flex",
-    width: "100%",
-    minHeight: "100vh",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 30,
+    maxWidth: 900, // 👈 controls 4 per row (200 * 4 + gaps)
+    margin: "0 auto",
   }}
->
-        {/* LEVEL SELECTION */}
-        <AnimatePresence mode="wait">
-          {!selectedLevel ? (
-            <motion.div
-              key="levels"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                minHeight: "100vh",
-                width: "100%",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                color: "white",
-                padding: "clamp(1rem,4vw,3rem)",
-              }}
-            >
-              <h1
-                style={{
-                  marginBottom: 40,
-                  fontSize: "clamp(1.6rem,5vw,3rem)",
-                  textAlign: "center",
-                }}
-              >
-                WHAT'S YOUR YEAR LEVEL?
-              </h1>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 20,
-                  flexWrap: "wrap",
-                  justifyContent: "center",
-                }}
-              >
-                {Object.keys(suppliesByLevel).map((level) => (
-                  <motion.div
-                    key={level}
-                    whileHover={{ scale: 1.08 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleLevelClick(level)}
-                    style={{
-                      background: "white",
-                      width: "clamp(120px,40vw,220px)",
-                      height: "clamp(120px,40vw,220px)",
-                      borderRadius: 20,
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      cursor: "pointer",
-                      color: "#111",
-                      fontWeight: "bold",
-                      fontSize: "clamp(1rem,3vw,1.3rem)",
-                      textAlign: "center",
-                      padding: 10,
-                    }}
-                  >
-                    {level}
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="supplies"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              style={{
-                display: "flex",
-                flex: 1,
-                minHeight: "100vh",
-                gap: 20,
-              }}
-            >
-              {/* LEFT SIDEBAR */}
-              <div
-  style={{
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "clamp(120px,20vw,200px)",
-    height: "100vh",
-    background: "#166534",
-    padding: "1rem",
-    display: window.innerWidth < 768 ? "none" : "flex",
-    flexDirection: "column",
-    gap: 10,
-    color: "white",
-    borderRadius: 0,
-    zIndex: 10,
-  }}
->
-                {Object.keys(suppliesByLevel).map((lvl) => (
-                  <div
-                    key={lvl}
-                    onClick={() => setSelectedLevel(lvl)}
-                    style={{
-                      padding: 12,
-                      textAlign: "center",
-                      borderRadius: 10,
-                      background: selectedLevel === lvl ? "#22c55e" : "rgba(255,255,255,0.2)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {lvl}
-                  </div>
-                ))}
-                <button
-                  onClick={() => setSelectedLevel(null)}
-                  style={{
-                    marginTop: "auto",
-                    padding: 10,
-                    background: "white",
-                    color: "#166534",
-                    border: "none",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                  }}
-                >
-                  ← Back
-                </button>
-              </div>
-
-              {/* MAIN CONTENT */}
-              <div
-                style={{
-                  flex: 1,
-                  marginLeft: "clamp(120px,20vw,200px)",
-                  padding: "clamp(1rem,4vw,3rem)",
-                  background: "#f3f4f6",
-                  borderRadius: 12,
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                {/* Search */}
-                <input
-                  placeholder="Search supplies..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{
-                    position: "absolute",
-                    top: 20,
-                    right: 20,
-                    padding: 8,
-                    borderRadius: 6,
-                    border: "1px solid #ccc",
-                    width: "220px",
-                  }}
-                />
-
-                <div style={{ marginBottom: 30 }}>
-  <h2>Electronic Central Supplies Record</h2>
-
-  {selectedProcedures.length > 0 && (
-    <div
-      style={{
-        marginTop: 8,
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 8,
-      }}
-    >
-      {selectedProcedures.map((proc) => (
-        <span
-          key={proc}
-          style={{
-            background: "#16a34a",
-            color: "white",
-            padding: "4px 10px",
-            borderRadius: 20,
-            fontSize: 13,
-            fontWeight: 500,
-          }}
         >
-          {proc}
-        </span>
-      ))}
-    </div>
-  )}
-</div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
-                    gap: 24,
-                  }}
-                >
-                  {filteredSupplies.map((item) => (
-                    <motion.div
-                      key={item.name}
-                      whileHover={{ scale: 1.05 }}
-                      style={{
-                        background: "white",
-                        borderRadius: 20,
-                        padding: 20,
-                        textAlign: "center",
-                        position: "relative",
-                        minHeight: "220px",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <h3>{item.name}</h3>
-                      {item.variants && (
-  <p style={{ color: "#16a34a", fontSize: 12 }}>
-    Choose Size
-  </p>
-)}
-                      <Image
-                        src={item.img}
-                        alt={item.name}
-                        width={100}
-                        height={100}
-                        style={{ width: "clamp(70px,20vw,120px)", height: "auto", objectFit: "contain",display: "block", margin: "0 auto 40px auto", }}
-                      />
-                      <p
-                        style={{
-                        position: "absolute",
-                        bottom: 12,
-                        left: 16,
-                        fontWeight: 600,
-                        fontSize: 14,
-                        }}
-                        >
-                        Stock: {item.stock}
-                      </p>
-                      <button
-                        onClick={() => addToCart(item)}
-                        style={{
-                        position: "absolute",
-                        bottom: 10,
-                        right: 14,
-                        width: 42,
-                        height: 42,
-                        borderRadius: "50%",
-                        border: "none",
-                        background: "#16a34a",
-                        color: "white",
-                        fontSize: 24,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                      >
-                       +
-                  </button>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {["1st Level", "2nd Level", "3rd Level", "4th Level", "All Levels", "Others", "Rooms"].map(
+            (lvl) => {
+              const isSelected = selectedLevel === lvl;
 
-      {/* BOTTOM CART */}
-<AnimatePresence>
-  {cart.length > 0 && (
-    <motion.div
-      initial={{ y: "100%" }}
-      animate={{ y: 0 }}
-      exit={{ y: "100%" }}
-      transition={{ type: "spring", stiffness: 260, damping: 25 }}
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: "clamp(120px,25vw,220px)",
-        width: "calc(100% - clamp(120px,25vw,220px))",
-        minHeight: "120px",
-        background: "rgba(15,15,15,0.95)",
-        backdropFilter: "blur(12px)",
-        color: "white",
-        padding: "16px 20px",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        overflowX: "auto",
-        zIndex: 50,
-      }}
-    >
-      {/* Back Button */}
-      <button
-        onClick={() => setCart([])}
-        style={{
-          padding: "6px 12px",
-          background: "#ef4444",
-          border: "none",
-          borderRadius: 8,
-          color: "white",
-          cursor: "pointer",
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
-        Clear
-      </button>
-
-      <h3
-        style={{
-          fontSize: "1.1rem",
-          fontWeight: 600,
-          marginRight: 10,
-          flexShrink: 0,
-        }}
-      >
-        🛒 Cart
-      </h3>
-
-      {cart.map((item) => (
-        <motion.div
-          key={item.name}
-          whileHover={{ scale: 1.03 }}
-          style={{
-            background: "#1f1f1f",
-            padding: 10,
-            borderRadius: 12,
-            minWidth: 140,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <strong style={{ fontSize: 14 }}>{item.name}</strong>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <button
-              onClick={() => decrease(item.name)}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 6,
-                border: "none",
-                background: "#ef4444",
-                color: "white",
-                cursor: "pointer",
-              }}
-            >
-              −
-            </button>
-
-            <span style={{ fontWeight: 600 }}>{item.qty}</span>
-
-            <button
-              onClick={() => increase(item.name)}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 6,
-                border: "none",
-                background: "#22c55e",
-                color: "white",
-                cursor: "pointer",
-              }}
-            >
-              +
-            </button>
-          </div>
-        </motion.div>
-      ))}
-
-      {/* Borrow Button */}
-      <button
-        onClick={checkout}
-        style={{
-          marginLeft: "auto",
-          padding: "10px 18px",
-          background: "linear-gradient(135deg,#22c55e,#16a34a)",
-          border: "none",
-          borderRadius: 10,
-          cursor: "pointer",
-          fontWeight: 600,
-          boxShadow: "0 6px 18px rgba(34,197,94,0.4)",
-          flexShrink: 0,
-        }}
-      >
-        Borrow Supplies
-      </button>
-    </motion.div>
-  )}
-</AnimatePresence>
-
-        {/* RECEIPT MODAL */}
-        <AnimatePresence>
-          {showReceipt && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.7)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 100,
-                padding: 20,
-              }}
-            >
-              <motion.div
-                initial={{ scale: 0.8 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0.8 }}
-                style={{
-                  background: "#fff",
-                  padding: 30,
-                  borderRadius: 20,
-                  width: "100%",
-                  maxWidth: 400,
-                  textAlign: "left",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                }}
-              >
-                <h2 style={{ textAlign: "center" }}>Borrow Receipt</h2>
-                <p><strong>Student:</strong> {studentName}</p>
-                <p><strong>Instructor:</strong> {instructorName}</p>
-                <p><strong>Section:</strong> {section}</p>
-                <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-                <p><strong>Time:</strong> {new Date().toLocaleTimeString()}</p>
-                <hr />
-                <h3>Borrowed Items:</h3>
-                <ul>
-                  {cart.map((item) => (
-                    <li key={item.name}>
-                      {item.name} x {item.qty}
-                    </li>
-                  ))}
-                </ul>
-                <input
-                  placeholder="Enter your email..."
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{ padding: 8, borderRadius: 6, border: "1px solid #ccc", marginTop: 10 }}
-                />
+              return (
                 <button
-                  onClick={sendEmail}
-                  style={{
-                    marginTop: 10,
-                    padding: "10px 20px",
-                    background: "#16a34a",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                  }}
-                >
-                  Send to Email
-                </button>
-                <button
-                  onClick={() => setShowReceipt(false)}
-                  style={{
-                    marginTop: 10,
-                    padding: "10px 20px",
-                    background: "#f87171",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                  }}
-                >
-                  Close
-                </button>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  key={lvl}
+                  onClick={() => {
+                        if (lvl === "Rooms" || lvl === "All Levels" || lvl === "Others") {
+                          setSelectedLevel(lvl);
+                          setCheckedProcedures([]); 
+                          setSelectedSemester("");    
+                          return;
+                        }
 
-        <AnimatePresence>
-  {variantModal && selectedItem && (
+                        setPendingLevel(lvl);
+                        setShowSemesterModal(true);
+                      }}
+                    style={{
+                    width: 200,
+                    height: 180,
+                    borderRadius: 18,
+                    border: isSelected
+                      ? "3px solid #7c3aed"
+                      : "3px solid transparent",
+                    background: "#ffffff",
+                    boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+                    fontSize: 18,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    whiteSpace: "pre-line", // 👈 allows line break
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.transform = "scale(1.05)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.transform = "scale(1)")
+                  }
+                >
+                  {lvl.replace(" ", "\n")}
+                </button>
+              );
+            }
+          )}
+        </div>
+      </div>
+            <AnimatePresence>
+  {showSemesterModal && (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -1128,11 +967,11 @@ const procedureSupplies: Record<string, string[]> = {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.7)",
+        background: "rgba(0,0,0,0.6)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        zIndex: 200,
+        zIndex: 999,
       }}
     >
       <motion.div
@@ -1140,47 +979,851 @@ const procedureSupplies: Record<string, string[]> = {
         animate={{ scale: 1 }}
         exit={{ scale: 0.8 }}
         style={{
-          background: "white",
+          background: "#fff",
           padding: 30,
-          borderRadius: 20,
-          width: 300,
+          borderRadius: 16,
+          width: 400,
           textAlign: "center",
         }}
       >
-        <h3>Select {selectedItem.name} Size</h3>
+<h2>
+  {pendingLevel === "1st Level"
+    ? "Select Category"
+    : "Select Semester"}
+</h2>
 
-        {selectedItem.variants?.map((v) => (
-          <button
-            key={v}
-            onClick={() => {
-              addItemToCart(`${selectedItem.name} (${v})`);
-              setVariantModal(false);
-            }}
-            style={{
-              display: "block",
-              width: "100%",
-              marginTop: 10,
-              padding: 10,
-              background: "#16a34a",
-              color: "white",
-              border: "none",
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
-          >
-            {v}
-          </button>
-        ))}
+<div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+  {pendingLevel === "1st Level" ? (
+    <>
+      <button
+        onClick={() => {
+          setSelectedSemester(prev =>
+            prev === "HEALTH ASSESSMENT" ? "" : "HEALTH ASSESSMENT"
+          );
+        }}
+        style={{
+          flex: 1,
+          padding: 12,
+          background: "#2563eb",
+          color: "white",
+          borderRadius: 10,
+          border: "none",
+        }}
+      >
+        Health Assessment
+      </button>
+
+      <button
+        onClick={() => {
+          setSelectedSemester(prev =>
+            prev === "FUNDAMENTALS RD" ? "" : "FUNDAMENTALS RD"
+          );
+        }}
+        style={{
+          flex: 1,
+          padding: 12,
+          background: "#16a34a",
+          color: "white",
+          borderRadius: 10,
+          border: "none",
+        }}
+      >
+        Fundamentals RD
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        onClick={() => {
+          setSelectedSemester(prev =>
+            prev === "1st Semester" ? "" : "1st Semester"
+          );
+        }}
+        style={{
+          flex: 1,
+          padding: 12,
+          background: "#2563eb",
+          color: "white",
+          borderRadius: 10,
+          border: "none",
+        }}
+      >
+        1st Semester
+      </button>
+
+      <button
+        onClick={() => {
+          setSelectedSemester(prev =>
+            prev === "2nd Semester" ? "" : "2nd Semester"
+          );
+        }}
+        style={{
+          flex: 1,
+          padding: 12,
+          background: "#16a34a",
+          color: "white",
+          borderRadius: 10,
+          border: "none",
+        }}
+      >
+        2nd Semester
+      </button>
+    </>
+  )}
+</div>
+      
+
+        {/* PROCEDURES */}
+        {selectedSemester && pendingLevel && (
+  <div style={{ marginTop: 20, textAlign: "left" }}>
+    <h4>Procedures:</h4>
+
+    {(proceduresByLevel[pendingLevel]?.[selectedSemester] || []).length === 0 ? (
+      <p style={{ color: "#666" }}>No procedures for this semester</p>
+    ) : (
+      proceduresByLevel[pendingLevel][selectedSemester].map((proc: any) => (
+        <label
+          key={proc.name}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            cursor: "pointer",
+            marginBottom: 6,
+          }}
+        >
+          <input
+              type="checkbox"
+              checked={checkedProcedures.includes(proc.name)}
+              onChange={(e) => {
+                e.stopPropagation(); // 🔥 prevent weird React bugs
+                toggleProcedure(proc.name);
+              }}
+            />
+          {proc.name}
+        </label>
+      ))
+    )}
+  </div>
+)}
+
+        {/* ACTION BUTTON */}
+        
+  <div
+    style={{
+      display: "flex",
+      gap: 10,
+      marginTop: 20,
+    }}
+  >
+    {/* ✅ LEFT: CONTINUE */}
+    <button
+      onClick={() => {
+        setSelectedLevel(pendingLevel!);
+        setShowSemesterModal(false);
+      }}
+      style={{
+        flex: 1,
+        padding: 12,
+        background: "#22c55e",
+        color: "white",
+        border: "none",
+        borderRadius: 10,
+        fontWeight: "bold",
+      }}
+    >
+      Continue
+    </button>
+
+    {/* ✅ RIGHT: CANCEL */}
+    <button
+      onClick={() => {
+        setShowSemesterModal(false);
+        setPendingLevel(null);
+        setSelectedSemester("");
+       setCheckedProcedures([]);
+        setSelectedProcedure("");
+      }}
+      style={{
+        flex: 1,
+        padding: 12,
+        background: "#ef4444",
+        color: "white",
+        border: "none",
+        borderRadius: 10,
+        fontWeight: "bold",
+      }}
+    >
+      Cancel
+    </button>
+  </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+    </div>
+  );
+}
+
+// If ROOMS is selected → Show rooms instead of supply items
+if (selectedLevel === "Rooms") {
+  return (
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* Sidebar */}
+      <div style={{
+        width: 220,
+        background: "#166534",
+        padding: 20,
+        position: "fixed",
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between"   // <-- THIS FIXES THE BUTTON POSITION
+      }}>
+        <div>
+          <h3 style={{ color: "#fff" }}>Levels</h3>
+          {levels.map((lvl) => (
+            <button
+              key={lvl}
+              onClick={() => setSelectedLevel(lvl)}
+              style={{
+                width: "100%",
+                padding: 15,
+                marginBottom: 10,
+                background: selectedLevel === lvl ? "#22c55e" : "#15803d",
+                borderRadius: 12,
+                color: "#fff",
+                textAlign: "left",
+              }}
+            >
+              {lvl}
+            </button>
+          ))}
+        </div>
 
         <button
-          onClick={() => setVariantModal(false)}
+          onClick={() => {
+            setSelectedLevel("");
+            setSelectedSemester("");
+            setCheckedProcedures([]);
+            setSelectedProcedure("");
+            setCart([]);
+          }}
+          style={{
+            marginTop: 20,
+            width: "100%",
+            padding: 12,
+            borderRadius: 12,
+            background: "#ed0909",
+            color: "#ffffff",
+            border: "none",
+          }}
+        >
+          ← Back
+        </button>
+      </div>
+
+                 <AnimatePresence>
+    {showRoomModal && selectedRoom && (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 200,
+        }}
+      >
+        <motion.div
+    initial={{ scale: 0.8, opacity: 0 }}
+    animate={{ scale: 1, opacity: 1 }}
+    exit={{ scale: 0.8, opacity: 0 }}
+    style={{
+      background: "white",
+      padding: 30,
+      borderRadius: 20,
+      width: 380,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+      boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+    }}
+  >
+    <h2 style={{ textAlign: "center", marginBottom: 10 }}>
+      📅 Book {selectedRoom}
+    </h2>
+  <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+    <span style={{ color: "#16a34a" }}> Choose your Prefrered Time</span>
+  </div>
+
+
+  {/* TIME INPUT */}
+  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <label style={{ fontWeight: 600 }}>Time In</label>
+    <input
+      type="time"
+      value={startTime}
+      min={currentTime} // ⛔ block past time
+      onChange={(e) => setStartTime(e.target.value)}
+      style={{ padding: 8, borderRadius: 8, border: "1px solid #ccc" }}
+    />
+
+    <label style={{ fontWeight: 600 }}>Time Out</label>
+    <input
+      type="time"
+      value={endTime}
+      min={startTime || currentTime} // ⛔ must be after startTime
+      onChange={(e) => setEndTime(e.target.value)}
+      style={{ padding: 8, borderRadius: 8, border: "1px solid #ccc" }}
+    />
+  </div>
+
+  <button
+    onClick={() => {
+      if (!startTime || !endTime) {
+        setAvailabilityMsg("⚠️ Please select time in and time out");
+        return;
+      }
+
+      if (startTime >= endTime) {
+  setAvailabilityMsg("❌ Invalid time range");
+
+  setTimeout(() => {
+    setAvailabilityMsg("");
+  }, 3000);
+
+  return;
+}
+
+          const now = new Date();
+          const selectedStart = new Date(`${today}T${startTime}`);
+
+          if (selectedStart < now) {
+            setAvailabilityMsg("⛔ Cannot select past time");
+
+            setTimeout(() => {
+              setAvailabilityMsg("");
+            }, 3000);
+
+            return;
+          }
+
+      const available = isRoomAvailable(selectedRoom!, today, startTime, endTime);
+
+      if (available) {
+        setAvailabilityMsg("✅ Room is AVAILABLE");
+
+        setTimeout(() => {
+          setAvailabilityMsg("");
+        }, 3000);
+      } else {
+        setAvailabilityMsg("❌ Room is NOT AVAILABLE");
+
+        setTimeout(() => {
+          setAvailabilityMsg("");
+        }, 3000);
+      }
+    }}
+    
+    style={{
+      marginTop: 10,
+      padding: 10,
+      background: "#2563eb",
+      color: "white",
+      border: "none",
+      borderRadius: 8,
+      cursor: "pointer",
+      fontWeight: 600,
+    }}
+  >
+    Check Availability
+  </button>
+
+  {availabilityMsg && (
+    <div
+      style={{
+        marginTop: 10,
+        padding: 10,
+        borderRadius: 10,
+        background: availabilityMsg.includes("AVAILABLE")
+          ? "#dcfce7"
+          : "#fee2e2",
+        color: availabilityMsg.includes("AVAILABLE")
+          ? "#166534"
+          : "#991b1b",
+        fontWeight: 600,
+        textAlign: "center",
+      }}
+    >
+      {availabilityMsg}
+    </div>
+  )}
+
+    {/* INFO PREVIEW */}
+    {startTime && endTime && (
+    <div>
+      ⏱ Booking: Today | {startTime} - {endTime}
+    </div>
+  )}
+
+    {/* ACTION BUTTONS */}
+    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+      <button
+        onClick={() => {
+          // 🔴 VALIDATIONS
+          if (!startTime || !endTime) {
+            alert("Please fill all fields");
+            return;
+          }
+
+          if (startTime >= endTime) {
+            alert("End time must be after start time");
+            return;
+          }
+
+          if (availabilityMsg !== "✅ Room is AVAILABLE") {
+            alert("Please check availability first!");
+            return;
+          }
+
+          const newBooking = {
+            id: Date.now(),
+            room: selectedRoom,
+            course: section || "N/A",
+            date: today,
+            start: startTime,
+            end: endTime,
+            studentName: studentName,
+            instructorName: instructorName,
+            section: section,
+            done: false,
+          };
+
+          const selectedStart = new Date(`${today}T${startTime}`);
+
+            if (selectedStart < new Date()) {
+              alert("⛔ Cannot book past time");
+              return;
+            }
+
+          const updated = [...roomBookings, newBooking];
+          setRoomBookings(updated);
+          localStorage.setItem("roomBookings", JSON.stringify(updated));
+
+          alert("✅ Room booked successfully!");
+
+          // reset fields
+    
+          setStartTime("");
+          setEndTime("");
+          setShowRoomModal(false);
+        }}
+        style={{
+          flex: 1,
+          padding: 10,
+          background: "#16a34a",
+          color: "white",
+          border: "none",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontWeight: 600,
+        }}
+      >
+        Confirm
+      </button>
+
+      <button
+        onClick={() => {
+          setShowRoomModal(false);
+        }}
+        style={{
+          flex: 1,
+          padding: 10,
+          background: "#ef4444",
+          color: "white",
+          border: "none",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontWeight: 600,
+        }}
+      >
+        Cancel
+      </button>
+    </div>
+  </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+
+      {/* Rooms Page */}
+      <div style={{ flex: 1, marginLeft: 220, padding: 30 }}>
+        <h1>Rooms</h1>
+
+        <div
+          style={{
+            marginTop: 20,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+            gap: 20,
+          }}
+        >
+          {roomsData.map((room) => (
+            <div
+              key={room.name}
+              style={{
+                background: "#fff",
+                padding: 20,
+                borderRadius: 16,
+                boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                cursor: "pointer",
+                textAlign: "center",
+              }}
+              onClick={() => {
+                setSelectedRoom(room.name);
+                setShowRoomModal(true);
+              }}
+            >
+              <h4>{room.name}</h4>
+              <span style={{ color: "#16a34a" }}> Choose your Preferred Time</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+  // Supplies page
+  return (
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* Sidebar */}
+        <div
+          style={{
+            width: 220,
+            background: "#166534",
+            padding: 20,
+            position: "fixed",
+            height: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between", // space between levels and back button
+          }}
+        >
+  <div>
+    <h3 style={{ color: "#fff", marginBottom: 20 }}>Levels</h3>
+    {levels.map((lvl) => (
+      <button
+        key={lvl}
+        onClick={() => {
+                if (lvl === "Rooms") {
+                  setSelectedLevel("Rooms");
+                } else {
+                  setSelectedLevel(lvl);
+                }
+              }}
+        style={{
+          width: "100%",
+          padding: 15,
+          marginBottom: 10,
+          borderRadius: 12,
+          border: "none",
+          background: selectedLevel === lvl ? "#22c55e" : "#15803d",
+          color: "white",
+          textAlign: "left",
+        }}
+      >
+        {lvl}
+      </button>
+    ))}
+  </div>
+  
+  
+  {/* BACK BUTTON at bottom */}
+  <button
+    onClick={() => {
+      setSelectedSemester("");
+      setCheckedProcedures([]);
+      setSelectedProcedure("");
+      setSelectedLevel("");
+      setCart([]);
+    }}
+    style={{
+      background: "#ed0909",
+      color: "#ffffff",
+      padding: "12px 20px",
+      borderRadius: 12,
+      border: "none",
+      cursor: "pointer",
+      fontWeight: 600,
+      width: "100%",
+      marginTop: 20,
+    }}
+  >
+    ← Back 
+  </button>
+</div>
+
+      {/* Main */}
+      <div style={{ flex: 1, marginLeft: 220, padding: 30, background: "#f3f4f6" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h1>Electronic Supply Records</h1>
+          <input
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 20,
+              border: "1px solid #ccc",
+            }}
+          />
+        </div>
+
+        {/* Items grid */}
+        <div
+          style={{
+            marginTop: 30,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+            gap: 25,
+          }}
+        >
+          {filteredItems.length === 0 ? (
+            <p style={{ gridColumn: "1 / -1", textAlign: "center" }}>No items found.</p>
+          ) : (
+            filteredItems.map((item) => (
+              <motion.div
+                key={item.id}
+                whileHover={{ scale: 1.03 }}
+                style={{
+                  background: "#fff",
+                  borderRadius: 20,
+                  padding: 20,
+                  height: 280,
+                  textAlign: "center",
+                  position: "relative",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                }}
+              >
+                <h3 style={{ fontSize: 16, fontWeight: 600 }}>{item.name}</h3>
+
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 140 }}>
+                  <Image
+                    src={item.image || "/images/placeholder.png"}
+                    alt={item.name}
+                    width={100}
+                    height={100}
+                    style={{ objectFit: "contain", borderRadius: 16 }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+                  <span style={{ color: "#6b7280", fontSize: 14 }}>Stock: {item.stock ?? 0}</span>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: "#22c55e",
+                      color: "white",
+                      border: "none",
+                      fontSize: 24,
+                      lineHeight: "36px",
+                    }}
+                    onClick={() => {
+                      const key = item.name.toLowerCase();
+
+                      if (itemVariants[key]) {
+                        setSelectedItemForVariant(item);
+                        setShowVariantModal(true);
+                      } else {
+                        addToCart(item);
+                      }
+                    }}
+                  >
+                    +
+                  </motion.button>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Cart */}
+        {cart.length > 0 && (
+            <div
+              style={{
+                position: "fixed",
+                bottom: 20,
+                right: 20,
+                width: "300px",
+                background: "#fff",
+                borderRadius: "14px",
+                boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
+                padding: "12px",
+                zIndex: 1000,
+              }}
+            >
+              {/* HEADER */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <strong style={{ fontSize: "14px" }}>Cart</strong>
+
+                {/* 🔴 CLEAR BUTTON */}
+                <button
+                  onClick={clearCart}
+                  style={{
+                    fontSize: "11px",
+                    background: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "3px 8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+
+              {/* ITEMS */}
+              <div
+                style={{
+                  maxHeight: "120px",
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                }}
+              >
+                {cart.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "13px",
+                      background: "#f9fafb",
+                      padding: "6px 8px",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <span>{item.name}</span>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <button onClick={() => updateQty(item.id, -1)}>−</button>
+                      <span>{item.qty}</span>
+                      <button onClick={() => updateQty(item.id, 1)}>+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* FOOTER */}
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                <span style={{ fontSize: "12px", color: "#666" }}>
+                  {cart.length} item(s)
+                </span>
+
+                <button
+                  onClick={openReceipt}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#16a34a",
+                    color: "white",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Checkout
+                </button>
+              </div>
+            </div>
+          )}
+
+          <AnimatePresence>
+  {showVariantModal && selectedItemForVariant && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 3000,
+      }}
+    >
+      <motion.div
+        initial={{ scale: 0.8 }}
+        animate={{ scale: 1 }}
+        exit={{ scale: 0.8 }}
+        style={{
+          background: "#fff",
+          padding: 25,
+          borderRadius: 16,
+          width: 320,
+          textAlign: "center",
+        }}
+      >
+        <h3>Select Variant</h3>
+        <p style={{ color: "#666", marginBottom: 15 }}>
+          {selectedItemForVariant.name}
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {itemVariants[selectedItemForVariant.name.toLowerCase()]?.map((v) => (
+            <button
+              key={v}
+              onClick={() => addVariantToCart(v)}
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                border: "none",
+                background: "#22c55e",
+                color: "#fff",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setShowVariantModal(false)}
           style={{
             marginTop: 15,
-            padding: 8,
             background: "#ef4444",
-            color: "white",
+            color: "#fff",
             border: "none",
-            borderRadius: 8,
+            padding: 10,
+            borderRadius: 10,
             width: "100%",
           }}
         >
@@ -1191,134 +1834,179 @@ const procedureSupplies: Record<string, string[]> = {
   )}
 </AnimatePresence>
 
-        {/* SEMESTER MODAL */}
-<AnimatePresence>
-  {showSemesterModal && (
+      {/* Receipt Modal */}
+      {showReceipt && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.6)",
+      backdropFilter: "blur(6px)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 2000,
+    }}
+  >
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{ scale: 0.8, opacity: 0, y: 40 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      exit={{ scale: 0.8, opacity: 0 }}
+      transition={{ duration: 0.3 }}
       style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.7)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 100,
-        padding: 20,
+        background: "#ffffff",
+        borderRadius: 20,
+        width: "95%",
+        maxWidth: 520,
+        padding: 24,
+        boxShadow: "0 25px 60px rgba(0,0,0,0.25)",
       }}
     >
-      <motion.div
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.8 }}
+      {/* HEADER */}
+      <div style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: 0 }}>🧾 Borrowing Receipt</h2>
+        <p style={{ fontSize: 13, color: "#666" }}>
+          Review your details before submitting
+        </p>
+      </div>
+
+      {/* STUDENT INFO */}
+      <div
         style={{
-          background: "#fff",
-          padding: 30,
-          borderRadius: 20,
-          width: "100%",
-          maxWidth: 400,
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
+          background: "#f9fafb",
+          padding: 14,
+          borderRadius: 12,
+          marginBottom: 15,
         }}
       >
-        <h2 style={{ textAlign: "center" }}>Select Semester</h2>
+        <p><b>Name:</b> {studentName}</p>
+        <p><b>Instructor:</b> {instructorName}</p>
+        <p><b>Course:</b> {section}</p>
+        <p><b>Date:</b> {selectedDate}</p>
+        <p><b>Time:</b> {selectedTime}</p>
+      </div>
 
-        {/* Semester Selection */}
-        <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 20 }}>
-          {["1st Semester", "2nd Semester"].map((sem) => (
-            <button
-              key={sem}
-              onClick={() => setSelectedSemester(sem)}
+      {/* ITEMS */}
+      <div style={{ marginBottom: 15 }}>
+        <h4 style={{ marginBottom: 8 }}>Items</h4>
+
+        <div
+          style={{
+            maxHeight: 150,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          {cart.map((item) => (
+            <div
+              key={item.id}
               style={{
-                padding: "10px 20px",
-                background: selectedSemester === sem ? "#16a34a" : "#ccc",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                cursor: "pointer",
+                display: "flex",
+                justifyContent: "space-between",
+                background: "#f3f4f6",
+                padding: "8px 12px",
+                borderRadius: 10,
+                fontSize: 14,
               }}
             >
-              {sem}
-            </button>
+              <span>{item.name}</span>
+              <b>x{item.qty}</b>
+            </div>
           ))}
         </div>
-
-        {/* Procedure Checklist */}
-        {selectedSemester && procedures[selectedLevelForSemester!][selectedSemester].length > 0 && (
-          <div>
-            <h3>Procedures:</h3>
-            {procedures[selectedLevelForSemester!][selectedSemester].map((proc) => (
-              <label key={proc} style={{ display: "block", marginBottom: 5 }}>
-                <input
-                  type="checkbox"
-                  value={proc}
-                  checked={selectedProcedures.includes(proc)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedProcedures((prev) => [...prev, proc]);
-                    } else {
-                      setSelectedProcedures((prev) =>
-                        prev.filter((p) => p !== proc)
-                      );
-                    }
-                  }}
-                  style={{ marginRight: 8 }}
-                />
-                {proc}
-              </label>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-  {/* Back Button */}
-  <button
-    onClick={() => {
-      setShowSemesterModal(false);
-      setSelectedSemester(null);
-      setSelectedProcedures([]);
-      setSelectedLevelForSemester(null);
-    }}
-    style={{
-      flex: 1,
-      padding: "10px",
-      background: "#ef4444",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      cursor: "pointer",
-    }}
-  >
-    Back
-  </button>
-
-  {/* Confirm Button */}
-  <button
-    onClick={() => {
-      setSelectedLevel(pendingLevel);
-      setShowSemesterModal(false);
-    }}
-    style={{
-      flex: 1,
-      padding: "10px",
-      background: "#16a34a",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      cursor: "pointer",
-    }}
-  >
-    Confirm
-  </button>
-</div>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
       </div>
+
+      {/* REMARKS */}
+      <input
+  placeholder="Processed by (e.g. Lab Assistant Name)"
+  value={processedBy}
+  onChange={(e) => setProcessedBy(e.target.value)}
+  style={{
+    width: "100%",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #ccc",
+    marginBottom: 16,
+  }}
+/>
+
+      {/* EMAIL INPUT */}
+      <input
+        placeholder="Enter Email (for receipt)"
+        value={studentEmail}
+        onChange={(e) => setStudentEmail(e.target.value)}
+        type="email"
+        style={{
+          width: "100%",
+          padding: 10,
+          borderRadius: 10,
+          border: "1px solid #ccc",
+          marginBottom: 16,
+        }}
+      />
+
+      {/* ACTION BUTTONS */}
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          onClick={() => setShowReceipt(false)}
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: 10,
+            border: "none",
+            background: "#e5e7eb",
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={handleCheckout}
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: 10,
+            border: "none",
+            background: "#22c55e",
+            color: "#fff",
+            fontWeight: "bold",
+            cursor: "pointer",
+          }}
+        >
+          Confirm & Send
+        </button>
+      </div>
+    </motion.div>
+  </div>
+)}
+
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 80,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#22c55e",
+            color: "#fff",
+            padding: "8px 20px",
+            borderRadius: 20,
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
+} 
+
+
+
+function matchItem(name: string, needed: string) {
+  throw new Error("Function not implemented.");
 }
+

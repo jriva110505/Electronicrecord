@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ChatBot from "@/components/ChatBot";
 
 export default function Home() {
   const router = useRouter();
@@ -10,15 +11,17 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const loginAdmin = () => {
-    if (username === "admin" && password === "admin123") {
-      router.push("/admin");
-    } else {
-      alert("Invalid admin credentials");
-    }
-  };
+ const loginAdmin = () => { 
+  if (username.trim() === "admin" && password.trim() === "admin") {
+    router.push("/admin");
+  } else {
+    alert("Invalid admin credentials");
+  }
 
-  return (
+};
+
+
+return (
     <div
       style={{
         position: "relative",
@@ -267,6 +270,8 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ChatBot />
     </div>
   );
 }

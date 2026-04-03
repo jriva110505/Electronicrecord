@@ -26,6 +26,28 @@ export default function About(): JSX.Element {
     time: "",
   });
 
+  const [showModal, setShowModal] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  const confirmSubmission = () => {
+  const data = {
+    instructor: formData.instructor,
+    course: formData.course,
+    studentName: formData.studentName,
+    studentId: formData.studentId,
+    date: formData.date,
+    time: formData.time,
+  };
+
+  localStorage.setItem("borrowerInfo", JSON.stringify(data));
+
+  setAgreed(true);
+  setShowModal(false);
+
+  router.push("/supplies");
+};
+
   // Handle input changes
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -62,10 +84,17 @@ export default function About(): JSX.Element {
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    alert("Submitted Successfully!");
-    router.push("/supplies");
-  };
+  e.preventDefault();
+
+  if (!agreed) {
+    setShowModal(true);
+    return;
+  }
+
+  alert("Submitted Successfully!");
+  router.push("/supplies");
+};
+
 
   const handleClear = () => {
     setFormData({
@@ -203,14 +232,29 @@ export default function About(): JSX.Element {
                 required
               />
 
-              <InputField
-                label="COURSE *"
-                name="course"
-                value={formData.course}
-                onChange={handleChange}
-                placeholder="BACHELOR OF SCIENCE IN NURSING"
-                required
-              />
+              <div style={{ marginBottom: "20px", width: "100%" }}>
+                <label style={{ fontWeight: 600, fontSize: "14px" }}>COURSE *</label>
+
+                <motion.input
+                  whileFocus={{ scale: 1.02 }}
+                  type="text"
+                  name="course"
+                  value={formData.course}
+                  onChange={handleChange}
+                  placeholder="BSN-2A, BSN-2B, etc."
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    marginTop: "6px",
+                    borderRadius: "20px",
+                    border: "1px solid #ccc",
+                    outline: "none",
+                    transition: "all 0.2s ease",
+                    textTransform: "uppercase", // 👈 keeps formatting clean
+                  }}
+                />
+              </div>
 
               <InputField
                 label="NAME OF THE STUDENTS (OPTIONAL)"
@@ -273,6 +317,178 @@ export default function About(): JSX.Element {
           </motion.div>
         </div>
       </div>
+      {showModal && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      backdropFilter: "blur(4px)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 2000,
+      padding: "20px",
+    }}
+  >
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      style={{
+        background: "#ffffff",
+        width: "100%",
+        maxWidth: "600px",
+        height: "80vh",
+        borderRadius: "16px",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        boxShadow: "0 15px 40px rgba(0,0,0,0.25)",
+      }}
+    >
+      {/* HEADER */}
+      <div
+        style={{
+          padding: "20px 24px",
+          borderBottom: "1px solid #eee",
+          background: "#f7faf7",
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Terms and Regulations</h2>
+        <p style={{ fontSize: "13px", color: "#666", marginTop: "4px" }}>
+          Please read carefully before proceeding.
+        </p>
+      </div>
+
+      {/* SCROLLABLE CONTENT */}
+      <div
+        style={{
+          padding: "20px 24px",
+          overflowY: "auto",
+          flex: 1,
+          fontSize: "14px",
+          lineHeight: 1.7,
+          color: "#333",
+        }}
+      >
+        <p>
+          By submitting the Instructor and Student Information Form and borrowing
+          supplies through the <b>Electronic Central Supplies Record System</b>,
+          the borrower agrees to follow the rules below.
+        </p>
+
+        <ul style={{ paddingLeft: "20px", marginTop: "10px" }}>
+          <li>Borrowed supplies must be used for academic purposes only.</li>
+          <li>
+            The borrower must provide accurate information including Instructor
+            Name, Course, Student Name, Student ID, Date, and Time.
+          </li>
+          <li>All borrowed supplies must be returned on the same day.</li>
+          <li>
+            The borrower must return the item before <b>9:00 PM</b>.
+          </li>
+          <li>
+            Items must be returned in the same condition as when borrowed.
+          </li>
+          <li>
+            Lost or damaged items may require replacement or payment of the
+            equivalent cost according to school policy.
+          </li>
+        </ul>
+
+        <h3 style={{ marginTop: "20px" }}>Data Privacy</h3>
+
+        <p>
+          The system collects information such as Instructor Name, Course,
+          Student Name, Student ID Number, Date, and Time for supply borrowing
+          records. This information will be used only for monitoring and
+          documentation in the Electronic Central Supplies Record System.
+        </p>
+
+        <p>
+          All collected data will be kept confidential and accessible only to
+          authorized personnel. Personal information will not be shared with
+          unauthorized individuals or third parties unless required by school
+          policy or law.
+        </p>
+
+        {/* CHECKBOX */}
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            marginTop: "20px",
+            background: "#f6fff6",
+            padding: "12px",
+            borderRadius: "10px",
+            border: "1px solid #d4f5d4",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={acceptedTerms}
+            onChange={() => setAcceptedTerms(!acceptedTerms)}
+            style={{ width: "18px", height: "18px" }}
+          />
+          <span>
+            I have read and agree to the <b>Terms and Regulations</b>.
+          </span>
+        </label>
+      </div>
+
+      {/* FOOTER BUTTONS */}
+      <div
+        style={{
+          borderTop: "1px solid #eee",
+          padding: "16px 24px",
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: "12px",
+          background: "#fafafa",
+        }}
+      >
+        <button
+          onClick={() => setShowModal(false)}
+          style={{
+            padding: "8px 18px",
+            borderRadius: "20px",
+            border: "none",
+            background: "#e0e0e0",
+            cursor: "pointer",
+            fontWeight: 500,
+          }}
+        >
+          Cancel
+        </button>
+
+        <button
+          disabled={!acceptedTerms}
+          onClick={() => {
+            setShowModal(false);
+            confirmSubmission();
+          }}
+          style={{
+            padding: "8px 22px",
+            borderRadius: "20px",
+            border: "none",
+            background: acceptedTerms ? "#00c853" : "#9e9e9e",
+            color: "white",
+            cursor: acceptedTerms ? "pointer" : "not-allowed",
+            fontWeight: 600,
+          }}
+        >
+          Agree & Continue
+        </button>
+      </div>
+    </motion.div>
+  </div>
+)}
+
+
     </motion.div>
   );
 }
