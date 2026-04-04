@@ -116,7 +116,7 @@ const confirmSubmission = () => {
       <div
         style={{
           padding: "clamp(15px,3vw,20px) clamp(20px,5vw,40px)",
-          background: "linear-gradient(to right, #7bc67b, #b8e6b8)",
+          background: "#2e5d40",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",

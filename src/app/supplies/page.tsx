@@ -38,9 +38,9 @@ export default function SuppliesPage() {
     const [checkedItems, setCheckedItems] = useState<string[]>([]);
     const [selectedDate, setSelectedDate] = useState("");
     const [selectedTime, setSelectedTime] = useState("");
-    const [processedBy, setProcessedBy] = useState("");
     const [showVariantModal, setShowVariantModal] = useState(false);
     const [selectedItemForVariant, setSelectedItemForVariant] = useState<Item | null>(null);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
     
 
   // Receipt modal
@@ -702,7 +702,6 @@ useEffect(() => {
   email: studentEmail, // ✅ ADD THIS
   items: cart,
   date: new Date().toISOString(),
-  issuedBy: processedBy,
   returned: false,
   approved: false, // ✅ NEW FLAG
 };
@@ -713,9 +712,14 @@ useEffect(() => {
     );
 
 
-    // Reset
     setCart([]);
-    setShowReceipt(false);
+setShowReceipt(false);
+setShowSuccessModal(true);
+
+// auto close after 3 seconds
+setTimeout(() => {
+  setShowSuccessModal(false);
+}, 3000);
 
     const refresh = await fetch("https://dbsupplyrecord-2.onrender.com/items");
     setItems(await refresh.json());
@@ -734,7 +738,6 @@ useEffect(() => {
         email: studentEmail, // ✅ ADD THIS
         items: cart,
         date: new Date().toISOString(),
-        issuedBy: processedBy,
         returned: false,
         approved: false, // ✅ NEW FLAG
       };
@@ -885,40 +888,65 @@ if (!selectedLevel) {
           zIndex: 1,
         }}
       >
-        <h1
-          style={{
-            marginBottom: 30,
-            fontSize: 35,
-            fontWeight: 600,
-            letterSpacing: 1,
-            color: "#ffffff",
-          }}
-        >
-          WHAT’S YOUR YEAR LEVEL?
-        </h1>
+        <motion.h1
+  initial={{ opacity: 0, y: -40 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.6, delay: 0.2 }}
+  style={{
+    marginBottom: 30,
+    fontSize: 35,
+    fontWeight: 600,
+    letterSpacing: 1,
+    color: "#ffffff",
+  }}
+>
+  WHAT’S YOUR YEAR LEVEL?
+</motion.h1>
 
-        <p style={{ color: "#00f974", marginBottom: 20 }}>
-      Choose your year level to continue
-    </p>
+        <motion.p
+  initial={{ opacity: 0, y: -20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.6, delay: 0.3 }}
+  style={{ color: "#00f974", marginBottom: 20 }}
+>
+  Choose your year level to continue
+</motion.p>
 
-      <div
+     <motion.div
+  initial="hidden"
+  animate="show"
+  variants={{
+    hidden: {},
+    show: {
+      transition: {
+        staggerChildren: 0.1, // 👈 delay each button
+      },
+    },
+  }}
   style={{
     display: "flex",
     flexWrap: "wrap",
     justifyContent: "center",
     gap: 30,
-    maxWidth: 900, // 👈 controls 4 per row (200 * 4 + gaps)
+    maxWidth: 900,
     margin: "0 auto",
   }}
-        >
+>
           {["1st Level", "2nd Level", "3rd Level", "4th Level", "All Levels", "Others", "Rooms"].map(
             (lvl) => {
               const isSelected = selectedLevel === lvl;
 
               return (
-                <button
-                  key={lvl}
-                  onClick={() => {
+                <motion.button
+              key={lvl}
+              variants={{
+                hidden: { opacity: 0, y: 40, scale: 0.9 },
+                show: { opacity: 1, y: 0, scale: 1 },
+              }}
+              transition={{ duration: 0.4 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
                         if (lvl === "Rooms" || lvl === "All Levels" || lvl === "Others") {
                           setSelectedLevel(lvl);
                           setCheckedProcedures([]); 
@@ -952,11 +980,11 @@ if (!selectedLevel) {
                   }
                 >
                   {lvl.replace(" ", "\n")}
-                </button>
+                </motion.button>
               );
             }
           )}
-        </div>
+        </motion.div>
       </div>
             <AnimatePresence>
   {showSemesterModal && (
@@ -1571,95 +1599,123 @@ if (selectedLevel === "Rooms") {
 
       {/* Main */}
       <div style={{ flex: 1, marginLeft: 220, padding: 30, background: "#f3f4f6" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1>Electronic Supply Records</h1>
-          <input
-            placeholder="Search..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              padding: "10px 20px",
-              borderRadius: 20,
-              border: "1px solid #ccc",
-            }}
-          />
-        </div>
+  {/* Title and Search */}
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <h1>Electronic Supply Records</h1>
+    <input
+      placeholder="Search..."
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+      style={{
+        padding: "10px 20px",
+        borderRadius: 20,
+        border: "1px solid #ccc",
+      }}
+    />
+  </div>
 
-        {/* Items grid */}
+  {/* Procedure Boxes below title */}
+  {checkedProcedures.length > 0 && (
+    <div
+      style={{
+        marginTop: 10,
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 6,
+      }}
+    >
+      {checkedProcedures.map((proc) => (
         <div
+          key={proc}
           style={{
-            marginTop: 30,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-            gap: 25,
+            padding: "4px 10px",
+            background: "#22c55e", // green
+            color: "#ffffff",       // white text
+            borderRadius: 12,       // pill shape
+            fontSize: 12,
+            fontWeight: 500,
           }}
         >
-          {filteredItems.length === 0 ? (
-            <p style={{ gridColumn: "1 / -1", textAlign: "center" }}>No items found.</p>
-          ) : (
-            filteredItems.map((item) => (
-              <motion.div
-                key={item.id}
-                whileHover={{ scale: 1.03 }}
-                style={{
-                  background: "#fff",
-                  borderRadius: 20,
-                  padding: 20,
-                  height: 280,
-                  textAlign: "center",
-                  position: "relative",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  cursor: "pointer",
-                }}
-              >
-                <h3 style={{ fontSize: 16, fontWeight: 600 }}>{item.name}</h3>
-
-                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 140 }}>
-                  <Image
-                    src={item.image || "/images/placeholder.png"}
-                    alt={item.name}
-                    width={100}
-                    height={100}
-                    style={{ objectFit: "contain", borderRadius: 16 }}
-                  />
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-                  <span style={{ color: "#6b7280", fontSize: 14 }}>Stock: {item.stock ?? 0}</span>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      background: "#22c55e",
-                      color: "white",
-                      border: "none",
-                      fontSize: 24,
-                      lineHeight: "36px",
-                    }}
-                    onClick={() => {
-                      const key = item.name.toLowerCase();
-
-                      if (itemVariants[key]) {
-                        setSelectedItemForVariant(item);
-                        setShowVariantModal(true);
-                      } else {
-                        addToCart(item);
-                      }
-                    }}
-                  >
-                    +
-                  </motion.button>
-                </div>
-              </motion.div>
-            ))
-          )}
+          {proc}
         </div>
-      </div>
+      ))}
+    </div>
+  )}
+
+  {/* Items grid */}
+  <div
+    style={{
+      marginTop: 30,
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+      gap: 25,
+    }}
+  >
+    {filteredItems.length === 0 ? (
+      <p style={{ gridColumn: "1 / -1", textAlign: "center" }}>No items found.</p>
+    ) : (
+      filteredItems.map((item) => (
+        <motion.div
+          key={item.id}
+          whileHover={{ scale: 1.03 }}
+          style={{
+            background: "#fff",
+            borderRadius: 20,
+            padding: 20,
+            height: 280,
+            textAlign: "center",
+            position: "relative",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            cursor: "pointer",
+          }}
+        >
+          <h3 style={{ fontSize: 16, fontWeight: 600 }}>{item.name}</h3>
+
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 140 }}>
+            <Image
+              src={item.image || "/images/placeholder.png"}
+              alt={item.name}
+              width={100}
+              height={100}
+              style={{ objectFit: "contain", borderRadius: 16 }}
+            />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+            <span style={{ color: "#6b7280", fontSize: 14 }}>Stock: {item.stock ?? 0}</span>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: "#22c55e",
+                color: "white",
+                border: "none",
+                fontSize: 24,
+                lineHeight: "36px",
+              }}
+              onClick={() => {
+                const key = item.name.toLowerCase();
+                if (itemVariants[key]) {
+                  setSelectedItemForVariant(item);
+                  setShowVariantModal(true);
+                } else {
+                  addToCart(item);
+                }
+              }}
+            >
+              +
+            </motion.button>
+          </div>
+        </motion.div>
+      ))
+    )}
+  </div>
+</div>
 
       {/* Cart */}
         {cart.length > 0 && (
@@ -1918,20 +1974,6 @@ if (selectedLevel === "Rooms") {
         </div>
       </div>
 
-      {/* REMARKS */}
-      <input
-  placeholder="Processed by (e.g. Lab Assistant Name)"
-  value={processedBy}
-  onChange={(e) => setProcessedBy(e.target.value)}
-  style={{
-    width: "100%",
-    padding: 10,
-    borderRadius: 10,
-    border: "1px solid #ccc",
-    marginBottom: 16,
-  }}
-/>
-
       {/* EMAIL INPUT */}
       <input
         placeholder="Enter Email (for receipt)"
@@ -1982,6 +2024,44 @@ if (selectedLevel === "Rooms") {
     </motion.div>
   </div>
 )}
+{showSuccessModal && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 3000,
+    }}
+  >
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.8, opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      style={{
+        background: "#ffffff",
+        borderRadius: 20,
+        width: "90%",
+        maxWidth: 400,
+        padding: "32px 24px",
+        textAlign: "center",
+        boxShadow: "0 25px 60px rgba(0,0,0,0.25)",
+      }}
+    >
+      <div style={{ fontSize: 60, color: "#22c55e", marginBottom: 16 }}>✔️</div>
+      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#111827" }}>
+        Thank You for Borrowing!
+      </h2>
+      <p style={{ marginTop: 12, fontSize: 15, color: "#4b5563", lineHeight: 1.5 }}>
+        Admin will process your request shortly. <br />
+        You have borrowed {cart.length} item(s). Please check your email for details.
+      </p>
+    </motion.div>
+  </div>
+)}
 
       {/* Toast */}
       {toast && (
@@ -2003,6 +2083,8 @@ if (selectedLevel === "Rooms") {
     </div>
   );
 } 
+
+
 
 
 

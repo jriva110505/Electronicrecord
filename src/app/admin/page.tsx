@@ -26,17 +26,18 @@
         }
 
         interface Message {
-  text: string;
-  sender: "user" | "system";
-  read?: boolean;
-  timestamp?: string;
-}
+          id?: number;
+          text: string;
+          sender: "user" | "system";
+          read?: boolean;
+          timestamp?: string;
+        }
 
-interface Conversation {
-  studentId: string;
-  studentName: string;
-  messages: Message[];
-}
+        interface Conversation {
+          studentId: string;
+          studentName: string;
+          messages: Message[];
+        }
 
         export default function AdminPage() {
           const router = useRouter();
@@ -63,8 +64,15 @@ interface Conversation {
           const [reply, setReply] = useState("");
           const apiUrl = "https://dbsupplyrecord-2.onrender.com";
           const chatBoxRef = useRef<HTMLDivElement>(null);
-          
-          
+
+          const [currentUser, setCurrentUser] = useState("");
+  
+          useEffect(() => {
+  const user = localStorage.getItem("currentUser");
+  if (user) {
+    setCurrentUser(user);
+  }
+}, []);
 // messages load
 
 const formatMessageTime = (timestamp: string | number | Date) => {
@@ -83,21 +91,26 @@ const formatMessageTime = (timestamp: string | number | Date) => {
   // Group messages by student
   const groupMessagesByStudent = (messages: any[]): Conversation[] => {
     const grouped: Record<string, Conversation> = {};
-    messages.forEach(msg => {
-      if (!grouped[msg.studentId]) {
-        grouped[msg.studentId] = {
-          studentId: msg.studentId,
-          studentName: msg.studentName,
-          messages: [],
-        };
-      }
-      grouped[msg.studentId].messages.push({
-        text: msg.text,
-        sender: msg.sender,
-        read: msg.read ?? false,
-        timestamp: msg.createdAt,
-      });
-    });
+   messages.forEach(msg => {
+  // 🚨 Skip invalid / corrupted messages
+  if (!msg.studentId || !msg.text || !msg.sender) return;
+
+  if (!grouped[msg.studentId]) {
+    grouped[msg.studentId] = {
+      studentId: msg.studentId,
+      studentName: msg.studentName,
+      messages: [],
+    };
+  }
+
+  grouped[msg.studentId].messages.push({
+     id: msg.id,
+    text: msg.text,
+    sender: msg.sender,
+    read: msg.read ?? false,
+    timestamp: msg.createdAt,
+  });
+});
     return Object.values(grouped);
   };
 
@@ -122,7 +135,8 @@ const formatMessageTime = (timestamp: string | number | Date) => {
                 oldMsg =>
                   oldMsg.timestamp === newMsg.timestamp &&
                   oldMsg.sender === newMsg.sender &&
-                  oldMsg.text === newMsg.text
+                  oldMsg.text === newMsg.text &&
+                  oldMsg.id === newMsg.id
               )
           ),
         ];
@@ -195,93 +209,49 @@ const formatMessageTime = (timestamp: string | number | Date) => {
   };
 
   // Send reply
-  const sendReply = async () => {
-    if (!reply.trim() || !selectedChat) return;
+const sendReply = async () => {
+  if (!reply.trim() || !selectedChat) return;
 
-    const newMsg: Message = {
-      text: reply,
-      sender: "system",
-      read: true,
-      timestamp: new Date().toISOString(),
-    };
-
-    try {
-      await fetch(`${apiUrl}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId: selectedChat.studentId,
-          studentName: selectedChat.studentName,
-          sender: "system",
-          text: reply,
-        }),
-      });
-
-      setConversations(prev =>
-        prev.map(c =>
-          c.studentId === selectedChat.studentId
-            ? { ...c, messages: [...c.messages, newMsg] }
-            : c
-        )
-      );
-
-      setSelectedChat(prev =>
-        prev ? { ...prev, messages: [...prev.messages, newMsg] } : null
-      );
-
-      setReply("");
-    } catch (err) {
-      console.error("Failed to send message:", err);
-    }
-  };
-
-  
-
-// Receipt & Mark as Done
-
-const confirmDoneBorrow = () => {
-  if (!pendingDone) return;
-
-  markAsDone(pendingDone);
-
-  setShowDoneConfirm(false);
-  setPendingDone(null);
-};
-
-           const markAsDone = async (borrow: any) => {
   try {
-    // 🔥 SEND RECEIPT HERE
-    await fetch("/reciept", {
+    const res = await fetch(`${apiUrl}/chat`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        studentName: borrow.studentName,
-        instructorName: borrow.instructorName,
-        section: borrow.section,
-        email: borrow.email, // make sure this exists
-        items: borrow.items,
+        studentId: selectedChat.studentId,
+        studentName: selectedChat.studentName,
+        sender: "system",
+        text: reply,
       }),
     });
 
-    // ✅ UPDATE STATUS
-    const updated = borrowHistory.map((b) =>
-      b.id === borrow.id
-        ? { ...b, done: true } // 👈 mark as approved/released
-        : b
+    const savedMsg = await res.json(); // ✅ GET REAL DB MESSAGE (with id)
+
+    const newMsg: Message = {
+      id: savedMsg.id, // ✅ IMPORTANT
+      text: savedMsg.text,
+      sender: savedMsg.sender,
+      read: true,
+      timestamp: savedMsg.createdAt,
+    };
+
+    setConversations(prev =>
+      prev.map(c =>
+        c.studentId === selectedChat.studentId
+          ? { ...c, messages: [...c.messages, newMsg] }
+          : c
+      )
     );
 
-    setBorrowHistory(updated);
-    localStorage.setItem("borrowHistory", JSON.stringify(updated));
+    setSelectedChat(prev =>
+      prev ? { ...prev, messages: [...prev.messages, newMsg] } : null
+    );
 
-    alert("✅ Borrow approved & receipt sent!");
+    setReply("");
   } catch (err) {
-    console.error(err);
-    alert("❌ Failed to send receipt");
+    console.error("Failed to send message:", err);
   }
 };
- 
+
           //ROOMS 
   const endSession = (id: number) => {
   const updated = roomBookings.map(b =>
@@ -338,6 +308,57 @@ useEffect(() => {
 
 //ITems
 
+// Receipt & Mark as Done
+
+const confirmDoneBorrow = () => {
+  if (!pendingDone) return;
+
+  markAsDone(pendingDone);
+
+  setShowDoneConfirm(false);
+  setPendingDone(null);
+};
+
+ const markAsDone = async (borrow: any) => {
+  try {
+    // 🔥 SEND RECEIPT
+    await fetch("/reciept", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        studentName: borrow.studentName,
+        instructorName: borrow.instructorName,
+        section: borrow.section,
+        email: borrow.email,
+        items: borrow.items,
+        issuedBy: currentUser,
+      }),
+    });
+
+    // ✅ UPDATE STATUS + ADMIN NAME
+    const updated = borrowHistory.map((b) =>
+      b.id === borrow.id
+        ? { 
+            ...b, 
+            done: true,
+            issuedBy: currentUser // 🔥 THIS IS THE FIX
+          }
+        : b
+    );
+
+    setBorrowHistory(updated);
+    localStorage.setItem("borrowHistory", JSON.stringify(updated));
+
+    alert("✅ Borrow approved & receipt sent!");
+  } catch (err) {
+    console.error(err);
+    alert("❌ Failed to send receipt");
+  }
+};
+ 
+
 useEffect(() => {
   const interval = setInterval(() => {
     const stored = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
@@ -393,19 +414,6 @@ useEffect(() => {
 
   return () => clearInterval(interval); // cleanup on unmount
 }, []);
-
-          // Modal & new item state
-          const [isAdding, setIsAdding] = useState(false);
-          const [newItem, setNewItem] = useState({
-            name: "",
-            level: "1st Level",
-            stock: 0,
-            variants: [] as Variant[],
-            serials: [] as Serial[],
-            hasVariants: false,
-            hasSerials: false,
-          });
-
  const declineBorrow = () => {
   if (!pendingDone) return;
 
@@ -424,6 +432,19 @@ useEffect(() => {
   setPendingDone(null);
 };
 
+
+
+          // Modal & new item state
+          const [isAdding, setIsAdding] = useState(false);
+          const [newItem, setNewItem] = useState({
+            name: "",
+            level: "1st Level",
+            stock: 0,
+            variants: [] as Variant[],
+            serials: [] as Serial[],
+            hasVariants: false,
+            hasSerials: false,
+          });
 
           // Load items
           const reloadItems = async () => {
@@ -1399,17 +1420,17 @@ const getMonthlyIncidents = () => {
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <label style={{ fontWeight: 600 }}>Processed By:</label>
       <input
-        type="text"
-        value={processedBy}
-        onChange={(e) => setProcessedBy(e.target.value)}
-        placeholder="Enter name"
-        style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 8,
-          border: "1px solid #ccc",
-        }}
-      />
+  type="text"
+  value={currentUser}
+  disabled
+  style={{
+    width: "100%",
+    padding: 10,
+    borderRadius: 8,
+    border: "1px solid #ccc",
+    background: "#f3f4f6",
+  }}
+/>
     </div>
   </div>
 )}
@@ -1455,6 +1476,7 @@ const getMonthlyIncidents = () => {
                   items: Object.keys(issueItems).filter(i => issueItems[i]),
                   note: incidentNote,
                   date: new Date().toISOString(),
+                   issuedBy: currentUser,
                 });
                 localStorage.setItem("incidents", JSON.stringify(incidents));
               }
@@ -1465,8 +1487,8 @@ const getMonthlyIncidents = () => {
                 ? {
                     ...h,
                     returned: true,
-                     returnedBy: processedBy,
-                    processedBy,
+                    returnedBy: currentUser,
+                    processedBy: currentUser,
                     remarks,
                     returnedDate: new Date().toISOString(),
                   }

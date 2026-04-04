@@ -3,9 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 
 interface Message {
+  id?: number;
   sender: "user" | "system";
   text: string;
   createdAt: string;
+  read?: boolean;
+
 }
 
 export default function StudentChatBox() {
@@ -91,35 +94,38 @@ export default function StudentChatBox() {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages]);
 
-  // Send message
-  const sendMessage = async () => {
-    if (!message.trim() || !studentId) return;
+ const sendMessage = async () => {
+  if (!message.trim() || !studentId) return;
+
+  try {
+    const res = await fetch(`${apiUrl}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId,
+        studentName: savedName || "Guest",
+        sender: "user",
+        text: message,
+      }),
+    });
+
+    const savedMsg = await res.json(); // ✅ get saved message with DB id
 
     const newMsg: Message = {
-      text: message,
-      sender: "user",
-      createdAt: new Date().toISOString(),
+      id: savedMsg.id,           // important!
+      text: savedMsg.text,
+      sender: savedMsg.sender,
+      createdAt: savedMsg.createdAt,
+      read: true,
     };
 
-    try {
-      await fetch(`${apiUrl}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId,
-          studentName: savedName || "Guest",
-          sender: "user",
-          text: message,
-        }),
-      });
-
-      // Append locally immediately
-      setMessages(prev => [...prev, newMsg]);
-      setMessage("");
-    } catch (err) {
-      console.error("Failed to send message:", err);
-    }
-  };
+    // Append message locally
+    setMessages(prev => [...prev, newMsg]);
+    setMessage("");
+  } catch (err) {
+    console.error("Failed to send message:", err);
+  }
+};
 
   return (
     <>

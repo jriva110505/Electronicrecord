@@ -11,13 +11,32 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
- const loginAdmin = () => { 
-  if (username.trim() === "admin" && password.trim() === "admin") {
+// 🔹 Define multiple admin accounts
+const admins = [
+  { username: "admin", password: "admin" },
+  { username: "xiena", password: "xienana" },
+  { username: "jerome", password: "jerome" },
+];
+
+// 🔹 Login function
+const loginAdmin = () => {
+  const trimmedUsername = username.trim();
+  const trimmedPassword = password.trim();
+
+  // 🔹 Check if credentials match any admin
+  const admin = admins.find(
+    (a) => a.username === trimmedUsername && a.password === trimmedPassword
+  );
+
+  if (admin) {
+    // 🔹 Save logged-in username to localStorage
+    localStorage.setItem("currentUser", admin.username);
+
+    // 🔹 Redirect to admin page
     router.push("/admin");
   } else {
     alert("Invalid admin credentials");
   }
-
 };
 
 
