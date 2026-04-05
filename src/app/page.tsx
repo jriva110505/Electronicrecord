@@ -14,8 +14,8 @@ export default function Home() {
 // 🔹 Define multiple admin accounts
 const admins = [
   { username: "admin", password: "admin" },
-  { username: "xiena", password: "xienana" },
-  { username: "jerome", password: "jerome" },
+  { username: "SAxiena", password: "xiena" },
+  { username: "SAjerome", password: "jerome" },
 ];
 
 // 🔹 Login function
@@ -57,7 +57,7 @@ return (
         alt="Background"
         fill
         style={{ objectFit: "cover" }}
-        quality={80}
+        quality={75}
         priority
       />
 

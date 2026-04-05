@@ -186,36 +186,58 @@ export default function StudentChatBox() {
 
           {/* Name Input */}
           {!savedName && (
-            <div style={{ padding: 10, borderBottom: "1px solid #eee" }}>
-              <input
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Enter your name (optional)"
-                  style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "1px solid #ccc",
-                    background: "white",   // make background white
-                    color: "black",        // make text black
-                    outline: "none",       // optional: remove default blue outline
-                  }}
-              />
-              <button
-                onClick={saveName}
-                style={{
-                  width: "100%",
-                  padding: 8,
-                  marginTop: 6,
-                  background: "#22c55e",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Save Name
-              </button>
-            </div>
+           <div
+  style={{
+    height: "100vh",              // full screen height
+    display: "flex",
+    justifyContent: "center",     // horizontal center
+    alignItems: "center",         // vertical center
+  }}
+>
+  <div
+    style={{
+      padding: 20,
+      borderBottom: "1px solid #eee",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 10,
+      width: "100%",
+      maxWidth: 400,              // limit width para di sobrang laki
+    }}
+  >
+    <input
+      value={name}
+      onChange={e => setName(e.target.value)}
+      placeholder="Enter your name & Section"
+      style={{
+        width: "100%",
+        padding: 10,
+        borderRadius: 8,
+        border: "1px solid #ccc",
+        background: "white",
+        color: "black",
+        outline: "none",
+        textAlign: "center",
+      }}
+    />
+
+    <button
+      onClick={saveName}
+      style={{
+        width: "100%",
+        padding: 10,
+        background: "#22c55e",
+        color: "white",
+        border: "none",
+        borderRadius: 6,
+        cursor: "pointer",
+      }}
+    >
+      Save Name
+    </button>
+  </div>
+</div>
           )}
 
           

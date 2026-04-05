@@ -680,7 +680,21 @@ useEffect(() => {
     setTimeout(() => setToast(""), 2000);
   };
 
- const handleCheckout = async () => {
+const handleCheckout = async () => {
+  // Trim and validate email first
+  const email = studentEmail.trim();
+
+  if (!email) {
+    alert("❌ Please enter your email!");
+    return; // stop submission
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    alert("❌ Please enter a valid email address!");
+    return; // stop submission
+  }
+
   try {
     // 🔻 Deduct stock
     for (const item of cart) {
@@ -695,31 +709,30 @@ useEffect(() => {
     const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
 
     const newBorrow = {
-  id: Date.now(),
-  studentName,
-  instructorName,
-  section,
-  email: studentEmail, // ✅ ADD THIS
-  items: cart,
-  date: new Date().toISOString(),
-  returned: false,
-  approved: false, // ✅ NEW FLAG
-};
+      id: Date.now(),
+      studentName,
+      instructorName,
+      section,
+      email, // ✅ already validated
+      items: cart,
+      date: new Date().toISOString(),
+      returned: false,
+      approved: false, // ✅ NEW FLAG
+    };
 
     localStorage.setItem(
       "borrowHistory",
       JSON.stringify([...existing, newBorrow])
     );
 
-
     setCart([]);
-setShowReceipt(false);
-setShowSuccessModal(true);
+    setShowReceipt(false);
+    setShowSuccessModal(true);
 
-// auto close after 3 seconds
-setTimeout(() => {
-  setShowSuccessModal(false);
-}, 3000);
+    // auto close after 3 seconds
+    setTimeout(() => {
+      setShowSuccessModal(false);
+    }, 3000);
 
     const refresh = await fetch("https://dbsupplyrecord-2.onrender.com/items");
     setItems(await refresh.json());
@@ -731,16 +744,16 @@ setTimeout(() => {
     const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
 
     const newBorrow = {
-        id: Date.now(),
-        studentName,
-        instructorName,
-        section,
-        email: studentEmail, // ✅ ADD THIS
-        items: cart,
-        date: new Date().toISOString(),
-        returned: false,
-        approved: false, // ✅ NEW FLAG
-      };
+      id: Date.now(),
+      studentName,
+      instructorName,
+      section,
+      email, // ✅ validated
+      items: cart,
+      date: new Date().toISOString(),
+      returned: false,
+      approved: false,
+    };
 
     localStorage.setItem(
       "borrowHistory",
@@ -847,7 +860,7 @@ if (!selectedLevel) {
       position: "absolute",
       inset: 0,
       background:
-        "linear-gradient(135deg, rgba(51, 41, 41, 0.6), rgba(34,197,94,0.3))",
+        "rgba(0,0,0,0.45)",
       backdropFilter: "blur(6px)",
     }}
       />
@@ -1200,7 +1213,7 @@ if (selectedLevel === "Rooms") {
       {/* Sidebar */}
       <div style={{
         width: 220,
-        background: "#166534",
+        background: "#2e5d40",
         padding: 20,
         position: "fixed",
         height: "100vh",
@@ -1209,7 +1222,7 @@ if (selectedLevel === "Rooms") {
         justifyContent: "space-between"   // <-- THIS FIXES THE BUTTON POSITION
       }}>
         <div>
-          <h3 style={{ color: "#fff" }}>Levels</h3>
+          <h3 style={{ color: "#fff", marginBottom: 20 }}>Levels</h3>
           {levels.map((lvl) => (
             <button
               key={lvl}
@@ -1534,7 +1547,7 @@ if (selectedLevel === "Rooms") {
         <div
           style={{
             width: 220,
-            background: "#166534",
+            background: "#2e5d40",
             padding: 20,
             position: "fixed",
             height: "100vh",
@@ -1891,7 +1904,7 @@ if (selectedLevel === "Rooms") {
 </AnimatePresence>
 
       {/* Receipt Modal */}
-      {showReceipt && (
+ {showReceipt && (
   <div
     style={{
       position: "fixed",
@@ -1985,9 +1998,13 @@ if (selectedLevel === "Rooms") {
           padding: 10,
           borderRadius: 10,
           border: "1px solid #ccc",
-          marginBottom: 16,
+          marginBottom: 5,
         }}
       />
+      {/* EMAIL ERROR MESSAGE */}
+      {!studentEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) && studentEmail.length > 0 && (
+        <p style={{ color: "red", fontSize: 12 }}>❌ Invalid email format</p>
+      )}
 
       {/* ACTION BUTTONS */}
       <div style={{ display: "flex", gap: 10 }}>
@@ -2007,15 +2024,16 @@ if (selectedLevel === "Rooms") {
 
         <button
           onClick={handleCheckout}
+          disabled={!studentEmail || !studentEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)}
           style={{
             flex: 1,
             padding: 12,
             borderRadius: 10,
             border: "none",
-            background: "#22c55e",
+            background: !studentEmail || !studentEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) ? "#9ca3af" : "#22c55e",
             color: "#fff",
             fontWeight: "bold",
-            cursor: "pointer",
+            cursor: !studentEmail || !studentEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) ? "not-allowed" : "pointer",
           }}
         >
           Confirm & Send
