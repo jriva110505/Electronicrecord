@@ -527,7 +527,13 @@ useEffect(() => {
               const res = await fetch("https://dbsupplyrecord-2.onrender.com/items", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newItem),
+                body: JSON.stringify({
+                    name: newItem.name,
+                    level: newItem.level,
+                    stock: newItem.hasVariants || newItem.hasSerials ? 0 : newItem.stock,
+                    variants: newItem.hasVariants ? newItem.variants : [],
+                    serials: newItem.hasSerials ? newItem.serials : [],
+                  }),
               });
               if (res.ok) {
                 alert("Item added successfully!");
