@@ -438,6 +438,7 @@ useEffect(() => {
           const [isAdding, setIsAdding] = useState(false);
           const [newItem, setNewItem] = useState({
             name: "",
+            image: "",
             level: "1st Level",
             stock: 0,
             variants: [] as Variant[],
@@ -462,7 +463,7 @@ useEffect(() => {
 
           const interval = setInterval(() => {
             reloadItems(); // 🔥 auto refresh every 10 sec
-          }, 3000);
+          }, 10000);
 
           return () => clearInterval(interval); // cleanup
         }, []);
@@ -529,6 +530,7 @@ useEffect(() => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: newItem.name,
+                    image: newItem.image, 
                     level: newItem.level,
                     stock: newItem.hasVariants || newItem.hasSerials ? 0 : newItem.stock,
                     variants: newItem.hasVariants ? newItem.variants : [],
@@ -540,6 +542,7 @@ useEffect(() => {
                 setIsAdding(false);
                 setNewItem({
                   name: "",
+                  image: "",
                   level: "1st Level",  
                   stock: 0,
                   variants: [],
