@@ -256,6 +256,7 @@ return (
                   borderRadius: "8px",
                   border: "1px solid #ccc",
                 }}
+                onKeyDown={e => e.key === "Enter" && loginAdmin()}
               />
 
               <button

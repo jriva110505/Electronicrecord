@@ -432,8 +432,6 @@ useEffect(() => {
   setPendingDone(null);
 };
 
-
-
           // Modal & new item state
           const [isAdding, setIsAdding] = useState(false);
           const [newItem, setNewItem] = useState({
@@ -448,15 +446,27 @@ useEffect(() => {
           });
 
           // Load items
-          const reloadItems = async () => {
-            try {
-              const res = await fetch("https://dbsupplyrecord-2.onrender.com/items");
-              const data = await res.json();
-              setItems(data);
-            } catch (err) {
-              console.error("Failed to load items:", err);
-            }
-          };
+         const reloadItems = async () => {
+  try {
+    const res = await fetch("https://dbsupplyrecord-2.onrender.com/items");
+    const data = await res.json();
+
+    // ✅ ensure safe defaults
+    const safeData = data.map((item: { id: any; name: any; image: any; level: any; stock: any; variants: any; serials: any; }) => ({
+      id: item.id,
+      name: item.name || "Unnamed Item",
+      image: item.image || null,
+      level: item.level || "1st Level",
+      stock: item.stock ?? 0,
+      variants: Array.isArray(item.variants) ? item.variants : [],
+      serials: Array.isArray(item.serials) ? item.serials : [],
+    }));
+
+    setItems(safeData);
+  } catch (err) {
+    console.error("Failed to load items:", err);
+  }
+};
 
           useEffect(() => {
           reloadItems();
@@ -502,61 +512,64 @@ useEffect(() => {
           };
 
           // Add new item
-          const addItem = async () => {
-            // Validation
-            if (!newItem.name.trim() || !newItem.level.trim()) {
-              alert("Please fill all fields");
-              return;
-            }
+ const addItem = async () => {
+  if (!newItem.name.trim() || !newItem.level.trim()) {
+    alert("Please fill all fields");
+    return;
+  }
 
-            if (!newItem.hasVariants && !newItem.hasSerials && newItem.stock <= 0) {
-              alert("Please set stock for normal item");
-              return;
-            }
+  if (!newItem.hasVariants && !newItem.hasSerials && newItem.stock <= 0) {
+    alert("Please set stock for normal item");
+    return;
+  }
 
-            if (newItem.hasVariants && newItem.variants.length === 0) {
-              alert("Add at least one variant");
-              return;
-            }
+  if (newItem.hasVariants && newItem.variants.length === 0) {
+    alert("Add at least one variant");
+    return;
+  }
 
-            if (newItem.hasSerials && newItem.serials.length === 0) {
-              alert("Add at least one serial number");
-              return;
-            }
+  if (newItem.hasSerials && newItem.serials.length === 0) {
+    alert("Add at least one serial number");
+    return;
+  }
 
-            try {
-              const res = await fetch("https://dbsupplyrecord-2.onrender.com/items", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    name: newItem.name,
-                    image: newItem.image, 
-                    level: newItem.level,
-                    stock: newItem.hasVariants || newItem.hasSerials ? 0 : newItem.stock,
-                    variants: newItem.hasVariants ? newItem.variants : [],
-                    serials: newItem.hasSerials ? newItem.serials : [],
-                  }),
-              });
-              if (res.ok) {
-                alert("Item added successfully!");
-                setIsAdding(false);
-                setNewItem({
-                  name: "",
-                  image: "",
-                  level: "1st Level",  
-                  stock: 0,
-                  variants: [],
-                  serials: [],
-                  hasVariants: false,
-                  hasSerials: false,
-                });
-                reloadItems();
-              } else alert("Failed to add item");
-            } catch (err) {
-              console.error(err);
-              alert("Error adding item");
-            }
-          };
+  try {
+    // ✅ Safe object
+    const itemData = {
+      name: newItem.name || "Unnamed Item",
+      image: newItem.image || null,
+      level: newItem.level || "1st Level",
+      stock: newItem.hasVariants || newItem.hasSerials ? 0 : newItem.stock,
+      variants: newItem.hasVariants ? newItem.variants : [],
+      serials: newItem.hasSerials ? newItem.serials : [],
+    };
+
+    const res = await fetch("https://dbsupplyrecord-2.onrender.com/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(itemData),
+    });
+
+    if (res.ok) {
+      alert("Item added successfully!");
+      setIsAdding(false);
+      setNewItem({
+        name: "",
+        image: "",
+        level: "1st Level",
+        stock: 0,
+        variants: [],
+        serials: [],
+        hasVariants: false,
+        hasSerials: false,
+      });
+      reloadItems();
+    } else alert("Failed to add item");
+  } catch (err) {
+    console.error(err);
+    alert("Error adding item");
+  }
+};
           
 
           // Add variant or serial
@@ -649,6 +662,64 @@ const getMonthlyIncidents = () => {
   return grouped;
 };
 
+const inputStyle = {
+  width: "100%",
+  padding: "10px 12px",
+  marginBottom: 10,
+  borderRadius: 8,
+  border: "1px solid #ddd",
+  fontSize: 14
+};
+
+const rowStyle = {
+  display: "flex",
+  gap: 8,
+  marginBottom: 8,
+  alignItems: "center"
+};
+
+const checkboxStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: 14
+};
+
+const primaryBtn = {
+  background: "#16a34a",
+  color: "white",
+  padding: "10px 16px",
+  borderRadius: 8,
+  border: "none",
+  fontWeight: 500,
+  cursor: "pointer"
+};
+
+const primaryBtnSmall = {
+  ...primaryBtn,
+  padding: "6px 10px",
+  fontSize: 13,
+  marginTop: 5
+};
+
+const secondaryBtn = {
+  background: "#e5e7eb",
+  color: "#111",
+  padding: "10px 16px",
+  borderRadius: 8,
+  border: "none",
+  cursor: "pointer"
+};
+
+const deleteBtn = {
+  background: "#ef4444",
+  color: "white",
+  border: "none",
+  borderRadius: 6,
+  padding: "4px 8px",
+  cursor: "pointer"
+};
+
 
           return (
             <div style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
@@ -674,69 +745,209 @@ const getMonthlyIncidents = () => {
 
                 {/* Add Modal */}
                 {isAdding && (
-                  <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-                    <div style={{ background: "white", padding: 30, borderRadius: 12, width: 400, maxHeight: "90vh", overflowY: "auto" }}>
-                      <h3 style={{ marginBottom: 15 }}>Add New Item</h3>
+  <div style={{
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+  }}>
+    <div style={{
+      background: "#fff",
+      padding: 24,
+      borderRadius: 16,
+      width: 420,
+      maxHeight: "90vh",
+      overflowY: "auto",
+      boxShadow: "0 20px 50px rgba(0,0,0,0.25)"
+    }}>
+      
+      {/* Header */}
+      <h2 style={{
+        marginBottom: 20,
+        fontWeight: 600,
+        fontSize: 20
+      }}>
+        Add New Item
+      </h2>
 
-                      <input type="text" placeholder="Name" value={newItem.name} onChange={e => setNewItem(prev => ({ ...prev, name: e.target.value }))} style={{ width: "100%", marginBottom: 10, padding: 10, borderRadius: 6, border: "1px solid #ccc" }} />
-                      <select
-                        value={newItem.level}
-                        onChange={e => setNewItem(prev => ({ ...prev, level: e.target.value }))}
-                      >
-                        <option value="1st Level">1st Level</option>
-                        <option value="2nd Level">2nd Level</option>
-                        <option value="3rd Level">3rd Level</option>
-                        <option value="4th Level">4th Level</option>
-                        <option value="Others">Others</option>
-                      </select>
+      {/* Name */}
+      <input
+        type="text"
+        placeholder="Item Name"
+        value={newItem.name}
+        onChange={e => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+        style={inputStyle}
+      />
 
-                      {/* Options */}
-                      <div style={{ marginBottom: 10 }}>
-                        <label><input type="checkbox" checked={newItem.hasVariants} disabled={newItem.hasSerials} onChange={e => setNewItem(prev => ({ ...prev, hasVariants: e.target.checked, hasSerials: false, variants: [], serials: [] }))} /> Has Variants</label>
-                        <br />
-                        <label><input type="checkbox" checked={newItem.hasSerials} disabled={newItem.hasVariants} onChange={e => setNewItem(prev => ({ ...prev, hasSerials: e.target.checked, hasVariants: false, variants: [], serials: [] }))} /> Has Serial Numbers</label>
-                      </div>
+      {/* Level */}
+      <select
+        value={newItem.level}
+        onChange={e => setNewItem(prev => ({ ...prev, level: e.target.value }))}
+        style={inputStyle}
+      >
+        <option value="1st Level">1st Level</option>
+        <option value="2nd Level">2nd Level</option>
+        <option value="3rd Level">3rd Level</option>
+        <option value="4th Level">4th Level</option>
+        <option value="Others">Others</option>
+      </select>
 
-                      {/* Normal stock */}
-                      {!newItem.hasVariants && !newItem.hasSerials && (
-                        <input type="number" placeholder="Stock" value={newItem.stock} min={0} onChange={e => setNewItem(prev => ({ ...prev, stock: Number(e.target.value) }))} style={{ width: "100%", marginBottom: 10, padding: 10, borderRadius: 6, border: "1px solid #ccc" }} />
-                      )}
+      {/* Toggles */}
+      <div style={{ margin: "15px 0", display: "flex", gap: 15 }}>
+        <label style={checkboxStyle}>
+          <input
+            type="checkbox"
+            checked={newItem.hasVariants}
+            disabled={newItem.hasSerials}
+            onChange={e => setNewItem(prev => ({
+              ...prev,
+              hasVariants: e.target.checked,
+              hasSerials: false,
+              variants: [],
+              serials: []
+            }))}
+          />
+          Variants
+        </label>
 
-                      {/* Variants */}
-                      {newItem.hasVariants && (
-                        <div>
-                          {newItem.variants.map((v, i) => (
-                            <div key={i} style={{ display: "flex", gap: 10, marginBottom: 5 }}>
-                              <input placeholder="Variant Type" value={v.type} onChange={e => { const copy = [...newItem.variants]; copy[i].type = e.target.value; setNewItem(prev => ({ ...prev, variants: copy })); }} style={{ flex: 2, padding: 8, borderRadius: 6, border: "1px solid #ccc" }} />
-                              <input type="number" placeholder="Stock" min={1} value={v.stock} onChange={e => { const copy = [...newItem.variants]; copy[i].stock = Number(e.target.value); setNewItem(prev => ({ ...prev, variants: copy })); }} style={{ flex: 1, padding: 8, borderRadius: 6, border: "1px solid #ccc" }} />
-                              <button onClick={() => { const copy = [...newItem.variants]; copy.splice(i, 1); setNewItem(prev => ({ ...prev, variants: copy })); }} style={{ background: "#ef4444", color: "white", border: "none", borderRadius: 6, padding: "0 8px" }}>X</button>
-                            </div>
-                          ))}
-                          <button onClick={addVariant} style={{ background: "#2563eb", color: "white", border: "none", borderRadius: 6, padding: "6px 10px", marginTop: 5 }}>Add Variant</button>
-                        </div>
-                      )}
+        <label style={checkboxStyle}>
+          <input
+            type="checkbox"
+            checked={newItem.hasSerials}
+            disabled={newItem.hasVariants}
+            onChange={e => setNewItem(prev => ({
+              ...prev,
+              hasSerials: e.target.checked,
+              hasVariants: false,
+              variants: [],
+              serials: []
+            }))}
+          />
+          Serials
+        </label>
+      </div>
 
-                      {/* Serials */}
-                      {newItem.hasSerials && (
-                        <div>
-                          {newItem.serials.map((s, i) => (
-                            <div key={i} style={{ display: "flex", gap: 10, marginBottom: 5 }}>
-                              <input placeholder="Serial Code" value={s.serial} onChange={e => { const copy = [...newItem.serials]; copy[i].serial = e.target.value; setNewItem(prev => ({ ...prev, serials: copy })); }} style={{ flex: 1, padding: 8, borderRadius: 6, border: "1px solid #ccc" }} />
-                              <button onClick={() => { const copy = [...newItem.serials]; copy.splice(i, 1); setNewItem(prev => ({ ...prev, serials: copy })); }} style={{ background: "#ef4444", color: "white", border: "none", borderRadius: 6, padding: "0 8px" }}>X</button>
-                            </div>
-                          ))}
-                          <button onClick={addSerial} style={{ background: "#2563eb", color: "white", border: "none", borderRadius: 6, padding: "6px 10px", marginTop: 5 }}>Add Serial</button>
-                        </div>
-                      )}
+      {/* Stock */}
+      {!newItem.hasVariants && !newItem.hasSerials && (
+        <input
+          type="number"
+          placeholder="Stock"
+          value={newItem.stock}
+          min={0}
+          onChange={e => setNewItem(prev => ({
+            ...prev,
+            stock: Number(e.target.value)
+          }))}
+          style={inputStyle}
+        />
+      )}
 
-                      {/* Buttons */}
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10 }}>
-                        <button onClick={() => setIsAdding(false)} style={{ background: "#9ca3af", color: "white", padding: "8px 14px", borderRadius: 6, border: "none" }}>Cancel</button>
-                        <button onClick={addItem} style={{ background: "#16a34a", color: "white", padding: "8px 14px", borderRadius: 6, border: "none" }}>Save</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+      {/* Variants */}
+      {newItem.hasVariants && (
+        <div>
+          {newItem.variants.map((v, i) => (
+            <div key={i} style={rowStyle}>
+              <input
+                placeholder="Type"
+                value={v.type}
+                onChange={e => {
+                  const copy = [...newItem.variants];
+                  copy[i].type = e.target.value;
+                  setNewItem(prev => ({ ...prev, variants: copy }));
+                }}
+                style={{ ...inputStyle, flex: 2 }}
+              />
+              <input
+                type="number"
+                value={v.stock}
+                min={1}
+                onChange={e => {
+                  const copy = [...newItem.variants];
+                  copy[i].stock = Number(e.target.value);
+                  setNewItem(prev => ({ ...prev, variants: copy }));
+                }}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                onClick={() => {
+                  const copy = [...newItem.variants];
+                  copy.splice(i, 1);
+                  setNewItem(prev => ({ ...prev, variants: copy }));
+                }}
+                style={deleteBtn}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button onClick={addVariant} style={primaryBtnSmall}>
+            + Add Variant
+          </button>
+        </div>
+      )}
+
+      {/* Serials */}
+      {newItem.hasSerials && (
+        <div>
+          {newItem.serials.map((s, i) => (
+            <div key={i} style={rowStyle}>
+              <input
+                placeholder="Serial Code"
+                value={s.serial}
+                onChange={e => {
+                  const copy = [...newItem.serials];
+                  copy[i].serial = e.target.value;
+                  setNewItem(prev => ({ ...prev, serials: copy }));
+                }}
+                style={inputStyle}
+              />
+              <button
+                onClick={() => {
+                  const copy = [...newItem.serials];
+                  copy.splice(i, 1);
+                  setNewItem(prev => ({ ...prev, serials: copy }));
+                }}
+                style={deleteBtn}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button onClick={addSerial} style={primaryBtnSmall}>
+            + Add Serial
+          </button>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: 10,
+        marginTop: 20
+      }}>
+        <button
+          onClick={() => setIsAdding(false)}
+          style={secondaryBtn}
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={addItem}
+          style={primaryBtn}
+        >
+          Save Item
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
 
                 {/* Items Table */}
                 {page === "items" && (

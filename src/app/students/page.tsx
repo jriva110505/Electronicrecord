@@ -192,7 +192,7 @@ const confirmSubmission = () => {
 
               {/* COURSE SELECT */}
              <div style={{ marginBottom: "20px", width: "100%" }}>
-  <label style={{ fontWeight: 600, fontSize: "14px" }}>COURSE *</label>
+  <label style={{ fontWeight: 600, fontSize: "14px" }}>SECTION*</label>
 
   <motion.input
     whileFocus={{ scale: 1.02 }}
