@@ -53,10 +53,10 @@ return (
     >
       {/* Background Image */}
       <Image
-        src="/green.jpg"
+        src="/green1.jpg"
         alt="Background"
         fill
-        style={{ objectFit: "cover" }}
+        style={{ objectFit: "fill" }}
         quality={75}
         priority
       />

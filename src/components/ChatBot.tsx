@@ -8,7 +8,6 @@ interface Message {
   text: string;
   createdAt: string;
   read?: boolean;
-
 }
 
 export default function StudentChatBox() {
@@ -16,22 +15,22 @@ export default function StudentChatBox() {
   const [name, setName] = useState("");
   const [savedName, setSavedName] = useState("");
   const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false); // ✅ prevent double send
+
   const chatRef = useRef<HTMLDivElement>(null);
-
-  const [messages, setMessages] = useState<Message[]>([
-  {
-    sender: "system",
-    text: "👋 Hello! Welcome to the support chat. How can we help you today?",
-    createdAt: new Date().toISOString(),
-  },
-]);
-
-  const apiUrl = "https://dbsupplyrecord-2.onrender.com";
   const guestId = useRef<string>("");
 
-  
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      sender: "system",
+      text: "👋 Hello! Welcome to the support chat. How can we help you today?",
+      createdAt: new Date().toISOString(),
+    },
+  ]);
 
-  // Initialize guest ID safely
+  const apiUrl = "https://dbsupplyrecord-2.onrender.com";
+
+  // 🔹 Initialize guest ID + saved name
   useEffect(() => {
     let id = localStorage.getItem("guestId");
     if (!id) {
@@ -46,14 +45,14 @@ export default function StudentChatBox() {
 
   const studentId = savedName || guestId.current;
 
-  // Save name
+  // 🔹 Save name
   const saveName = () => {
     if (!name.trim()) return;
     localStorage.setItem("chatName", name);
     setSavedName(name);
   };
 
-  // Load messages from server
+  // 🔹 Load messages (with strong dedupe)
   const loadMessages = async () => {
     if (!studentId) return;
 
@@ -62,18 +61,15 @@ export default function StudentChatBox() {
       const data: Message[] = await res.json();
 
       if (Array.isArray(data)) {
-        // Merge new messages without duplicates
         setMessages(prev => {
-          const merged = [
-            ...prev,
-            ...data.filter(
-              m =>
-                !prev.some(
-                  p => p.createdAt === m.createdAt && p.sender === m.sender && p.text === m.text
-                )
-            ),
-          ];
-          return merged;
+          const map = new Map();
+
+          [...prev, ...data].forEach(m => {
+            const key = `${m.id || ""}-${m.createdAt}-${m.text}`;
+            map.set(key, m);
+          });
+
+          return Array.from(map.values());
         });
       }
     } catch (err) {
@@ -81,7 +77,7 @@ export default function StudentChatBox() {
     }
   };
 
-  // Poll messages every 2s
+  // 🔹 Poll messages
   useEffect(() => {
     if (!studentId) return;
     loadMessages();
@@ -89,46 +85,68 @@ export default function StudentChatBox() {
     return () => clearInterval(interval);
   }, [studentId]);
 
-  // Auto-scroll
+  // 🔹 Auto-scroll
   useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
   }, [messages]);
 
- const sendMessage = async () => {
-  if (!message.trim() || !studentId) return;
+  // 🔥 SEND MESSAGE (FIXED)
+  const sendMessage = async () => {
+    if (!message.trim() || !studentId || isSending) return;
 
-  try {
-    const res = await fetch(`${apiUrl}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        studentId,
-        studentName: savedName || "Guest",
-        sender: "user",
-        text: message,
-      }),
-    });
+    setIsSending(true);
 
-    const savedMsg = await res.json(); // ✅ get saved message with DB id
+    const tempMessage = message;
+    setMessage(""); // instant clear (Messenger feel)
 
-    const newMsg: Message = {
-      id: savedMsg.id,           // important!
-      text: savedMsg.text,
-      sender: savedMsg.sender,
-      createdAt: savedMsg.createdAt,
-      read: true,
-    };
+    try {
+      const res = await fetch(`${apiUrl}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          studentName: savedName || "Guest",
+          sender: "user",
+          text: tempMessage,
+        }),
+      });
 
-    // Append message locally
-    setMessages(prev => [...prev, newMsg]);
-    setMessage("");
-  } catch (err) {
-    console.error("Failed to send message:", err);
-  }
-};
+      const savedMsg = await res.json();
+
+      const newMsg: Message = {
+        id: savedMsg.id,
+        text: savedMsg.text,
+        sender: savedMsg.sender,
+        createdAt: savedMsg.createdAt,
+        read: true,
+      };
+
+      setMessages(prev => {
+        if (
+          prev.some(
+            m =>
+              m.createdAt === newMsg.createdAt &&
+              m.text === newMsg.text &&
+              m.sender === newMsg.sender
+          )
+        ) {
+          return prev;
+        }
+        return [...prev, newMsg];
+      });
+    } catch (err) {
+      console.error("Failed to send message:", err);
+      setMessage(tempMessage); // restore if failed
+    }
+
+    setTimeout(() => setIsSending(false), 300);
+  };
 
   return (
     <>
+      {/* OPEN BUTTON */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
@@ -151,6 +169,7 @@ export default function StudentChatBox() {
         </button>
       )}
 
+      {/* CHAT BOX */}
       {open && (
         <div
           style={{
@@ -167,7 +186,7 @@ export default function StudentChatBox() {
             zIndex: 9999,
           }}
         >
-          {/* Header */}
+          {/* HEADER */}
           <div
             style={{
               background: "#22c55e",
@@ -184,149 +203,138 @@ export default function StudentChatBox() {
             </span>
           </div>
 
-          {/* Name Input */}
+          {/* NAME INPUT */}
           {!savedName && (
-           <div
-  style={{
-    height: "100vh",              // full screen height
-    display: "flex",
-    justifyContent: "center",     // horizontal center
-    alignItems: "center",         // vertical center
-  }}
->
-  <div
-    style={{
-      padding: 20,
-      borderBottom: "1px solid #eee",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 10,
-      width: "100%",
-      maxWidth: 400,              // limit width para di sobrang laki
-    }}
-  >
-    <input
-      value={name}
-      onChange={e => setName(e.target.value)}
-      placeholder="Enter your name & Section"
-      style={{
-        width: "100%",
-        padding: 10,
-        borderRadius: 8,
-        border: "1px solid #ccc",
-        background: "white",
-        color: "black",
-        outline: "none",
-        textAlign: "center",
-      }}
-    />
-
-    <button
-      onClick={saveName}
-      style={{
-        width: "100%",
-        padding: 10,
-        background: "#22c55e",
-        color: "white",
-        border: "none",
-        borderRadius: 6,
-        cursor: "pointer",
-      }}
-    >
-      Save Name
-    </button>
-  </div>
-</div>
-          )}
-
-          
-
-{/* Only show chat messages & input if name is saved */}
-{savedName && (
-  <>
-    {/* Messages */}
-    <div
-      ref={chatRef}
-      style={{
-        flex: 1,
-        padding: 10,
-        overflowY: "auto",
-        background: "#f9fafb",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {messages.length > 0 ? (
-        messages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              textAlign: m.sender === "user" ? "right" : "left",
-              marginBottom: 6,
-            }}
-          >
-            <span
+            <div
               style={{
-                padding: "8px 12px",
-                borderRadius: 12,
-                background: m.sender === "user" ? "#22c55e" : "#e5e7eb",
-                color: m.sender === "user" ? "white" : "black",
-                display: "inline-block",
-                maxWidth: "80%",
+                flex: 1,
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: 20,
               }}
             >
-              {m.text}
-            </span>
-          </div>
-        ))
-      ) : (
-        <div style={{ color: "#6b7280" }}>No messages yet</div>
-      )}
-    </div>
+              <div style={{ width: "100%", maxWidth: 250 }}>
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Enter your name & Section"
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                    marginBottom: 10,
+                    textAlign: "center",
+                  }}
+                />
 
-    {/* Input */}
-    <div
-      style={{
-        display: "flex",
-        padding: 10,
-        gap: 6,
-        borderTop: "1px solid #eee",
-      }}
-    >
-      <input
-  value={message}
-  onChange={e => setMessage(e.target.value)}
-  placeholder="Type a message..."
-  style={{
-    flex: 1,
-    padding: 10,
-    borderRadius: 8,
-    border: "1px solid #ccc",
-    background: "white",   // make background white
-    color: "black",        // make text black
-    outline: "none",       // optional: remove default blue outline
-  }}
-  onKeyDown={e => e.key === "Enter" && sendMessage()}
-/>
-      <button
-        onClick={sendMessage}
-        style={{
-          background: "#22c55e",
-          color: "white",
-          border: "none",
-          borderRadius: 8,
-          padding: "0 12px",
-        }}
-      >
-        ➤
-      </button>
-    </div>
-  </>
-)}
+                <button
+                  onClick={saveName}
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    background: "#22c55e",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Save Name
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* CHAT AREA */}
+          {savedName && (
+            <>
+              {/* MESSAGES */}
+              <div
+                ref={chatRef}
+                style={{
+                  flex: 1,
+                  padding: 10,
+                  overflowY: "auto",
+                  background: "#f9fafb",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {messages.map((m, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      textAlign: m.sender === "user" ? "right" : "left",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 12,
+                        background:
+                          m.sender === "user" ? "#22c55e" : "#e5e7eb",
+                        color: m.sender === "user" ? "white" : "black",
+                        display: "inline-block",
+                        maxWidth: "80%",
+                      }}
+                    >
+                      {m.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* INPUT */}
+              <div
+                style={{
+                  display: "flex",
+                  padding: 10,
+                  gap: 6,
+                  borderTop: "1px solid #eee",
+                }}
+              >
+                <input
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  style={{
+                    flex: 1,
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                    background: "white",
+                    color: "black",
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && !isSending) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                />
+
+                <button
+                  onClick={sendMessage}
+                  disabled={isSending}
+                  style={{
+                    background: isSending ? "#9ca3af" : "#22c55e",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "0 12px",
+                    cursor: isSending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isSending ? "..." : "➤"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
-
     </>
   );
 }

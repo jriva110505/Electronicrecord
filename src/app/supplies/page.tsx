@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
+import "./responsive.css";
 
 interface Item {
   id: number;
@@ -41,7 +42,6 @@ export default function SuppliesPage() {
     const [showVariantModal, setShowVariantModal] = useState(false);
     const [selectedItemForVariant, setSelectedItemForVariant] = useState<Item | null>(null);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
-    
 
   // Receipt modal
   const [showReceipt, setShowReceipt] = useState(false);
@@ -95,7 +95,7 @@ export default function SuppliesPage() {
     },
     {
       name: "Ears Nose and Throat",
-      items: ["otoscope", "tuning fork", "ruler", "gloves", "alcohol", "penlight", "secondary watch"],
+      items: ["otoscope", "tunning fork", "ruler", "gloves", "alcohol", "penlight", "secondary watch"],
     },
     {
       name: "Eyes",
@@ -103,7 +103,7 @@ export default function SuppliesPage() {
     },
     {
       name: "Obtaining Health History",
-      items: ["face mask"],
+      items: ["Face mask"],
     },
     {
       name: "Vital Signs",
@@ -142,7 +142,7 @@ export default function SuppliesPage() {
     },
     {
       name: "Safe Patient Handling",
-      items: ["sterile gauze", "cotton", "alcohol", "kidney basin", "forceps", "micropore", "bed"],
+      items: ["Gauze", "cotton", "alcohol", "kidney basin", "forceps", "micropore", "bed"],
     },
     {
       name: "Fall Prevention",
@@ -582,27 +582,26 @@ const addVariantToCart = (variant: string) => {
   
 const filteredItems = items
   .filter((item) => {
-    // ✅ LEVEL FILTER
-    if (
-      selectedLevel !== "All Levels" &&
-      selectedLevel !== "Rooms" &&
-      item.level?.toLowerCase() !== selectedLevel.toLowerCase()
-    ) {
-      return false;
+    // 🚀 Only apply level filter if NO procedure selected
+    if (!requiredItems.length) {
+      if (
+        selectedLevel !== "All Levels" &&
+        selectedLevel !== "Rooms" &&
+        item.level?.toLowerCase() !== selectedLevel.toLowerCase()
+      ) {
+        return false;
+      }
     }
 
     // ✅ If no procedure selected → show all
     if (!requiredItems.length) return true;
 
-    // ✅ MATCH ITEMS (safe + flexible)
+    // ✅ EXACT MATCH ONLY
     return requiredItems.some((needed: string) => {
       const itemName = item.name?.toLowerCase().trim();
       const neededName = needed.toLowerCase().trim();
 
-      return (
-        itemName.includes(neededName) ||
-        neededName.includes(itemName)
-      );
+      return itemName === neededName;
     });
   })
   .filter((item) =>
@@ -715,6 +714,8 @@ const handleCheckout = async () => {
       section,
       email, // ✅ already validated
       items: cart,
+      selectedDate,
+      selectedTime,
       date: new Date().toISOString(),
       returned: false,
       approved: false, // ✅ NEW FLAG
@@ -796,42 +797,14 @@ const handleCheckout = async () => {
   const now = new Date();
   const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
 
-  const isSlotBooked = (room: string, date: string, slot: string) => {
-    if (!date) return false;
-
-    const [start, end] = slot.split("-");
-
-    return roomBookings.some((b) => {
-      if (b.room !== room || b.date !== date) return false;
-      if (b.done) return false;
-
-      const newStart = new Date(`${date}T${start}`);
-      const newEnd = new Date(`${date}T${end}`);
-      const existingStart = new Date(`${b.date}T${b.start}`);
-      const existingEnd = new Date(`${b.date}T${b.end}`);
-
-      return (
-        (newStart >= existingStart && newStart < existingEnd) ||
-        (newEnd > existingStart && newEnd <= existingEnd) ||
-        (newStart <= existingStart && newEnd >= existingEnd)
-      );
-    });
-  };
-
-const isRoomAvailableNow = (room: string) => {
-  const now = new Date();
-
-  return !roomBookings.some((b) => {
-    if (b.room !== room || b.done) return false; // ✅ skip done bookings
-
-    const start = new Date(`${b.date}T${b.start}`);
-    const end = new Date(`${b.date}T${b.end}`);
-
-    return now >= start && now <= end;
-  });
+  const formatTime12 = (time24: string) => {
+  if (!time24) return ""; // safety check
+  const [hoursStr, minutes] = time24.split(":");
+  let hours = parseInt(hoursStr, 10);
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${ampm}`;
 };
-
-
 
 useEffect(() => {
   if (selectedLevel) {
@@ -842,12 +815,13 @@ useEffect(() => {
   // Level selection page
 if (!selectedLevel) {
   return (
-    <div
+    <div className="bg-container"
      style={{
     minHeight: "100vh",
-    backgroundImage: "url('/green.jpg')",
+    backgroundImage: "url('/green1.jpg')",
     backgroundSize: "cover",
     backgroundPosition: "center",
+    backgroundAttachment: "fixed",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -925,7 +899,8 @@ if (!selectedLevel) {
   Choose your year level to continue
 </motion.p>
 
-     <motion.div
+     <motion.div 
+     className="level-btn"
   initial="hidden"
   animate="show"
   variants={{
@@ -1502,7 +1477,7 @@ if (selectedLevel === "Rooms") {
   </AnimatePresence>
 
       {/* Rooms Page */}
-      <div style={{ flex: 1, marginLeft: 220, padding: 30 }}>
+      <div  style={{ flex: 1, marginLeft: 220, padding: 30 }}>
         <h1>Rooms</h1>
 
         <div
@@ -1544,7 +1519,7 @@ if (selectedLevel === "Rooms") {
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       {/* Sidebar */}
-        <div
+        <div 
           style={{
             width: 220,
             background: "#2e5d40",
@@ -1616,7 +1591,7 @@ if (selectedLevel === "Rooms") {
   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
     <h1>Electronic Supply Records</h1>
     <input
-      placeholder="Search..."
+      placeholder="🔍 Search for item.."
       value={search}
       onChange={(e) => setSearch(e.target.value)}
       style={{
@@ -1669,6 +1644,7 @@ if (selectedLevel === "Rooms") {
     ) : (
       filteredItems.map((item) => (
         <motion.div
+         className="card"
           key={item.id}
           whileHover={{ scale: 1.03 }}
           style={{
@@ -1730,107 +1706,165 @@ if (selectedLevel === "Rooms") {
   </div>
 </div>
 
-      {/* Cart */}
-        {cart.length > 0 && (
-            <div
+      {cart.length > 0 && (
+  <div className="cart"
+    style={{ 
+      position: "fixed",
+      bottom: 20,
+      right: 20,
+      width: "320px",
+      background: "#ffffff",
+      borderRadius: "16px",
+      boxShadow: "0 12px 28px rgba(0,0,0,0.18)",
+      padding: "16px",
+      zIndex: 1000,
+      fontFamily: "sans-serif",
+    }}
+  >
+    {/* HEADER */}
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 12,
+      }}
+    >
+      <strong style={{ fontSize: "16px" }}>🛒 Cart</strong>
+
+      {/* CLEAR BUTTON */}
+      <button
+        onClick={clearCart}
+        style={{
+          fontSize: "12px",
+          background: "#ef4444",
+          color: "#fff",
+          border: "none",
+          borderRadius: "6px",
+          padding: "4px 10px",
+          cursor: "pointer",
+          transition: "0.2s",
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "#dc2626"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "#ef4444"}
+      >
+        Clear
+      </button>
+    </div>
+
+    {/* ITEMS */}
+    <div
+      style={{
+        maxHeight: "160px",
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px",
+      }}
+    >
+      {cart.map((item) => (
+        <div
+          key={item.id}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            fontSize: "14px",
+            background: "#f3f4f6",
+            padding: "8px 12px",
+            borderRadius: "10px",
+            boxShadow: "inset 0 0 3px rgba(0,0,0,0.05)",
+          }}
+        >
+          <span>{item.name}</span>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "#e5e7eb",
+              borderRadius: "8px",
+              padding: "2px 4px",
+            }}
+          >
+            <button
+              onClick={() => updateQty(item.id, -1)}
               style={{
-                position: "fixed",
-                bottom: 20,
-                right: 20,
-                width: "300px",
-                background: "#fff",
-                borderRadius: "14px",
-                boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
-                padding: "12px",
-                zIndex: 1000,
+                width: 26,
+                height: 26,
+                borderRadius: "6px",
+                border: "none",
+                background: "#fef3c7",
+                color: "#92400e",
+                fontWeight: "bold",
+                cursor: "pointer",
+                transition: "0.2s",
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#fde68a"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "#fef3c7"}
             >
-              {/* HEADER */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <strong style={{ fontSize: "14px" }}>Cart</strong>
+              −
+            </button>
+            <span style={{ minWidth: 20, textAlign: "center" }}>{item.qty}</span>
+            <button
+              onClick={() => updateQty(item.id, 1)}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: "6px",
+                border: "none",
+                background: "#d1fae5",
+                color: "#065f46",
+                fontWeight: "bold",
+                cursor: "pointer",
+                transition: "0.2s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#a7f3d0"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "#d1fae5"}
+            >
+              +
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
 
-                {/* 🔴 CLEAR BUTTON */}
-                <button
-                  onClick={clearCart}
-                  style={{
-                    fontSize: "11px",
-                    background: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "3px 8px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Clear
-                </button>
-              </div>
+    {/* FOOTER */}
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        marginTop: 14,
+        alignItems: "center",
+      }}
+    >
+      <span style={{ fontSize: "13px", color: "#4b5563" }}>
+        {cart.length} item{cart.length > 1 ? "s" : ""}
+      </span>
 
-              {/* ITEMS */}
-              <div
-                style={{
-                  maxHeight: "120px",
-                  overflowY: "auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px",
-                }}
-              >
-                {cart.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontSize: "13px",
-                      background: "#f9fafb",
-                      padding: "6px 8px",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <span>{item.name}</span>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <button onClick={() => updateQty(item.id, -1)}>−</button>
-                      <span>{item.qty}</span>
-                      <button onClick={() => updateQty(item.id, 1)}>+</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* FOOTER */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
-                <span style={{ fontSize: "12px", color: "#666" }}>
-                  {cart.length} item(s)
-                </span>
-
-                <button
-                  onClick={openReceipt}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#16a34a",
-                    color: "white",
-                    fontSize: "12px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Checkout
-                </button>
-              </div>
-            </div>
-          )}
-
+      <button
+        onClick={openReceipt}
+        style={{
+          padding: "8px 16px",
+          borderRadius: "10px",
+          border: "none",
+          background: "#16a34a",
+          color: "white",
+          fontSize: "14px",
+          fontWeight: "bold",
+          cursor: "pointer",
+          boxShadow: "0 4px 10px rgba(22,163,52,0.3)",
+          transition: "0.2s",
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "#15803d"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "#16a34a"}
+      >
+        Checkout
+      </button>
+    </div>
+  </div>
+)}
           <AnimatePresence>
   {showVariantModal && selectedItemForVariant && (
     <motion.div
@@ -1952,7 +1986,7 @@ if (selectedLevel === "Rooms") {
         <p><b>Instructor:</b> {instructorName}</p>
         <p><b>Course:</b> {section}</p>
         <p><b>Date:</b> {selectedDate}</p>
-        <p><b>Time:</b> {selectedTime}</p>
+        <p><b>Time:</b>{formatTime12(selectedTime)}</p>
       </div>
 
       {/* ITEMS */}
@@ -2075,7 +2109,7 @@ if (selectedLevel === "Rooms") {
       </h2>
       <p style={{ marginTop: 12, fontSize: 15, color: "#4b5563", lineHeight: 1.5 }}>
         Admin will process your request shortly. <br />
-        You have borrowed {cart.length} item(s). Please check your email for details.
+        Please wait for admin to verify your borrow details. Thank you!!
       </p>
     </motion.div>
   </div>

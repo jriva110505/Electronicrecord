@@ -26,11 +26,14 @@
         }
 
         interface Message {
-          id?: number;
-          text: string;
+          timestamp: any;
+          id: number;
+          studentId?: string;
+          studentName?: string;
           sender: "user" | "system";
+          text: string;
           read?: boolean;
-          timestamp?: string;
+          createdAt: string;
         }
 
         interface Conversation {
@@ -60,12 +63,14 @@
           const [pendingDone, setPendingDone] = useState<any | null>(null);
           //messages
           const [conversations, setConversations] = useState<Conversation[]>([]);
+          const [isSendingReply, setIsSendingReply] = useState(false);
           const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
           const [reply, setReply] = useState("");
           const apiUrl = "https://dbsupplyrecord-2.onrender.com";
           const chatBoxRef = useRef<HTMLDivElement>(null);
 
           const [currentUser, setCurrentUser] = useState("");
+          
   
           useEffect(() => {
   const user = localStorage.getItem("currentUser");
@@ -73,6 +78,49 @@
     setCurrentUser(user);
   }
 }, []);
+
+const consumables = [
+  "Tongue depressor",
+  "Tape",
+  "Suction catheter",
+  "Sterile syringe",
+  "Sterile mask",
+  "Lubricant",
+  "Betadine",
+  "Adhesive tape",
+  "Clean gloves",
+  "Alcohol",
+  "Cotton",
+  "Face mask",
+  "Bandage",
+  "Micropore tape",
+  "Toothpaste",
+  "Anti-septic mouthwash",
+  "Soap",
+  "Diaper",
+  "Oxytocin",
+  "Syringe",
+  "Surgical needle",
+  "Sterile lubricating jelly",
+  "Betadine",
+  "Urinary bag",
+  "Eye ointment (erythromycin)",
+  "Vitamin K syringe",
+  "Sterile sanitary pad",
+  "Adult diaper",
+  "Ultrasound gel",
+  "Lubricant",
+  "Antiseptic solutions",
+  "Gauze pad",
+  "IV fluid",
+  "Normal saline solution",
+  "Alcohol swabs",
+  "Hand sanitizer"
+];
+
+const consumablesList = consumables.map(i => i.toLowerCase());
+
+
 // messages load
 
 const formatMessageTime = (timestamp: string | number | Date) => {
@@ -89,83 +137,90 @@ const formatMessageTime = (timestamp: string | number | Date) => {
   };
 
   // Group messages by student
-  const groupMessagesByStudent = (messages: any[]): Conversation[] => {
-    const grouped: Record<string, Conversation> = {};
-   messages.forEach(msg => {
-  // 🚨 Skip invalid / corrupted messages
-  if (!msg.studentId || !msg.text || !msg.sender) return;
+const groupMessagesByStudent = (messages: any[]): Conversation[] => {
+  const grouped: Record<string, Conversation> = {};
 
-  if (!grouped[msg.studentId]) {
-    grouped[msg.studentId] = {
-      studentId: msg.studentId,
-      studentName: msg.studentName,
-      messages: [],
+  messages.forEach(msg => {
+    if (!msg.studentId || !msg.text || !msg.sender) return;
+
+    if (!grouped[msg.studentId]) {
+      grouped[msg.studentId] = {
+        studentId: msg.studentId,
+        studentName: msg.studentName,
+        messages: [],
+      };
+    }
+
+    const newMsg = {
+      id: msg.id,
+      text: msg.text,
+      sender: msg.sender,
+      read: msg.read ?? false,
+      createdAt: msg.createdAt,
+      timestamp: msg.createdAt,
     };
-  }
 
-  grouped[msg.studentId].messages.push({
-     id: msg.id,
-    text: msg.text,
-    sender: msg.sender,
-    read: msg.read ?? false,
-    timestamp: msg.createdAt,
+    // ✅ strict dedupe
+    const exists = grouped[msg.studentId].messages.some(
+      m => m.id === newMsg.id
+    );
+
+    if (!exists) {
+      grouped[msg.studentId].messages.push(newMsg);
+    }
   });
-});
-    return Object.values(grouped);
-  };
+
+  return Object.values(grouped);
+};
 
   // Load conversations with merge
- const loadConversations = async () => {
+const loadConversations = async () => {
   try {
     const res = await fetch(`${apiUrl}/chat/all`);
+    if (!res.ok) return;
+
     const data = await res.json();
     const grouped = groupMessagesByStudent(data);
 
     setConversations(prev =>
       grouped.map(newC => {
         const oldC = prev.find(c => c.studentId === newC.studentId);
+
         if (!oldC) return newC;
 
-        // Merge messages, preserve read flags, prevent duplicates
         const mergedMessages = [
-          ...oldC.messages, // keep local messages (with read flags)
+          ...oldC.messages,
           ...newC.messages.filter(
-            newMsg =>
-              !oldC.messages.some(
-                oldMsg =>
-                  oldMsg.timestamp === newMsg.timestamp &&
-                  oldMsg.sender === newMsg.sender &&
-                  oldMsg.text === newMsg.text &&
-                  oldMsg.id === newMsg.id
-              )
+            m => !oldC.messages.some(old => old.id === m.id)
           ),
         ];
 
-        return { ...newC, messages: mergedMessages };
+        return {
+          ...newC,
+          messages: mergedMessages,
+        };
       })
     );
 
-    // Update selected chat with the same merge logic
     setSelectedChat(prev => {
       if (!prev) return prev;
+
       const updated = grouped.find(c => c.studentId === prev.studentId);
       if (!updated) return prev;
 
       const mergedMessages = [
-        ...prev.messages, // keep local read flags
+        ...prev.messages,
         ...updated.messages.filter(
-          newMsg =>
-            !prev.messages.some(
-              oldMsg =>
-                oldMsg.timestamp === newMsg.timestamp &&
-                oldMsg.sender === newMsg.sender &&
-                oldMsg.text === newMsg.text
-            )
+          m => !prev.messages.some(old => old.id === m.id)
         ),
       ];
 
-      return { ...updated, messages: mergedMessages };
+      return {
+        ...updated,
+        messages: mergedMessages,
+      };
     });
+
   } catch (err) {
     console.error("Failed to load conversations:", err);
   }
@@ -210,7 +265,12 @@ const formatMessageTime = (timestamp: string | number | Date) => {
 
   // Send reply
 const sendReply = async () => {
-  if (!reply.trim() || !selectedChat) return;
+  if (!reply.trim() || !selectedChat || isSendingReply) return;
+
+  setIsSendingReply(true);
+
+  const tempReply = reply;
+  setReply("");
 
   try {
     const res = await fetch(`${apiUrl}/chat`, {
@@ -220,36 +280,50 @@ const sendReply = async () => {
         studentId: selectedChat.studentId,
         studentName: selectedChat.studentName,
         sender: "system",
-        text: reply,
+        text: tempReply,
       }),
     });
 
-    const savedMsg = await res.json(); // ✅ GET REAL DB MESSAGE (with id)
+    const savedMsg = await res.json();
 
     const newMsg: Message = {
-      id: savedMsg.id, // ✅ IMPORTANT
+      id: savedMsg.id,
       text: savedMsg.text,
       sender: savedMsg.sender,
       read: true,
-      timestamp: savedMsg.createdAt,
+      createdAt: savedMsg.createdAt,
+      timestamp: undefined
     };
 
     setConversations(prev =>
       prev.map(c =>
         c.studentId === selectedChat.studentId
-          ? { ...c, messages: [...c.messages, newMsg] }
+          ? {
+              ...c,
+              messages: c.messages.some(m => m.id === newMsg.id)
+                ? c.messages
+                : [...c.messages, newMsg],
+            }
           : c
       )
     );
 
     setSelectedChat(prev =>
-      prev ? { ...prev, messages: [...prev.messages, newMsg] } : null
+      prev
+        ? {
+            ...prev,
+            messages: prev.messages.some(m => m.id === newMsg.id)
+              ? prev.messages
+              : [...prev.messages, newMsg],
+          }
+        : null
     );
 
-    setReply("");
   } catch (err) {
     console.error("Failed to send message:", err);
   }
+
+  setTimeout(() => setIsSendingReply(false), 300);
 };
 
           //ROOMS 
@@ -362,34 +436,40 @@ const confirmDoneBorrow = () => {
 useEffect(() => {
   const interval = setInterval(() => {
     const stored = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
-
     const now = new Date();
 
     const updated = stored.map((b: any) => {
-      if (b.returned) return b; // already returned → skip
+      if (b.returned) return b;
 
-      const borrowDate = new Date(b.date);
+      // use selectedDate/Time for deadline
+      const borrowDate = b.selectedDate && b.selectedTime
+        ? new Date(`${b.selectedDate}T${b.selectedTime}`)
+        : new Date(b.date); // fallback for old data
 
-      // 👉 create 9PM deadline (same day)
       const deadline = new Date(borrowDate);
-      deadline.setHours(21, 0, 0, 0); // 9:00 PM
+      deadline.setHours(21, 0, 0, 0); // 9PM
 
       if (now > deadline) {
-        return {
-          ...b,
-          remarks: "overdue", // 🔥 mark overdue
-        };
+        return { ...b, remarks: "overdue" };
       }
 
       return b;
     });
 
     localStorage.setItem("borrowHistory", JSON.stringify(updated));
-    setBorrowHistory(updated);
-  }, 5000); // check every 5 sec
+  }, 60000);
 
   return () => clearInterval(interval);
 }, []);
+
+const formatTime12 = (time24: string) => {
+  if (!time24) return ""; // safety check
+  const [hoursStr, minutes] = time24.split(":");
+  let hours = parseInt(hoursStr, 10);
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${ampm}`;
+};
 
     useEffect(() => {
         const stored = JSON.parse(localStorage.getItem("incidents") || "[]");
@@ -720,6 +800,214 @@ const deleteBtn = {
   cursor: "pointer"
 };
 
+const actionBtn = (bg: string) => ({
+  background: bg,
+  border: "none",
+  width: 32,
+  height: 32,
+  borderRadius: 8,
+  color: "white",
+  fontWeight: "bold",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  transition: "0.2s"
+});
+
+const consumableItems = filteredItems.filter(item =>
+  consumablesList.includes(item.name.toLowerCase())
+);
+
+const nonConsumableItems = filteredItems.filter(item =>
+  !consumablesList.includes(item.name.toLowerCase())
+);
+
+const totalItems = filteredItems.length;
+const totalConsumables = consumableItems.length;
+const totalNonConsumables = nonConsumableItems.length;
+
+        const SectionHeader = ({ title, count, color }: { title: string; count: number; color: string }) => (
+          <h3 style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            color,
+            marginBottom: 10,
+            marginTop: 30
+          }}>
+            {title}
+            <span style={{
+                fontSize: 12,
+                background: "#16a34a",
+                color: "white",
+                padding: "5px 16px",
+                borderRadius: 20,
+                marginLeft: 10,
+                fontWeight: "bold"
+            }}>
+              ({count} items)
+            </span>
+          </h3>
+        );
+
+        const renderTable = (items: any[]) => (
+        <div
+            style={{
+              background: "#ffffff",
+              borderRadius: 12, // match top
+              boxShadow: "0 4px 12px rgba(0,0,0,0.06)", // lighter like top
+              overflow: "hidden",
+              marginBottom: 30, // more spacing between sections
+              border: "1px solid #f1f5f9"
+            }}
+          >
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                tableLayout: "fixed"
+              }}
+            >
+              {/* HEADER */}
+              <thead>
+                <tr
+                  style={{
+                    background: "#2e5d40",
+                    textAlign: "left",
+                    fontSize: 12,
+                    color: "#f2fff4",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5
+                  }}
+                >
+        <th style={{ padding: "12px 16px", width: "10%" }}>ID</th>
+        <th style={{ padding: "12px 16px", width: "40%" }}>Item</th>
+        <th style={{ padding: "12px 16px", width: "15%", textAlign: "center" }}>Stock</th>
+        <th style={{ padding: "12px 16px", width: "15%", textAlign: "center" }}>Level</th>
+        <th style={{ padding: "12px 16px", width: "20%", textAlign: "center" }}>Actions</th>
+                </tr>
+              </thead>
+
+              {/* BODY */}
+              <tbody>
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
+                      No items found
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((item, index) => {
+                    const isLow = item.stock <= 5;
+
+                    return (
+                      <tr
+          key={item.id}
+          style={{
+            borderTop: "1px solid #f1f5f9",
+            background: "#ffffff",
+            height: 60
+          }}
+          onMouseEnter={e =>
+            (e.currentTarget.style.background = "#f3f4f6")
+          }
+          onMouseLeave={e =>
+            (e.currentTarget.style.background = "#ffffff")
+          }
+        >
+                        {/* ID */}
+                        <td style={{ padding: 14, fontWeight: 500 }}>
+                          #{item.id}
+                        </td>
+
+                        {/* NAME */}
+                        <td style={{ padding: 14 }}>
+                          <div style={{ fontWeight: 600 }}>{item.name}</div>
+                        </td>
+
+                  {/* STOCK */}
+        <td style={{ padding: 14, textAlign: "center", verticalAlign: "middle" }}>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <span
+              style={{
+                padding: "6px 10px",
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: "bold",
+                background: isLow ? "#fee2e2" : "#dcfce7",
+                color: isLow ? "#b91c1c" : "#166534",
+                minWidth: 60, // 👈 keeps size consistent
+                textAlign: "center"
+              }}
+            >
+              {item.variants?.length > 0
+                ? item.variants.map((v: { type: any; stock: any; }) => `${v.type} x${v.stock}`).join(", ")
+                : item.serials?.length > 0
+                ? item.serials.map((s: { serial: any; }) => s.serial).join(", ")
+                : item.stock}
+            </span>
+          </div>
+        </td>
+
+                {/* LEVEL */}
+                <td style={{ padding: 14, textAlign: "center",verticalAlign: "middle" }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      padding: "4px 10px",
+                      borderRadius: 20,
+                      background: "#e0f2fe",
+                      color: "#0369a1",
+                      fontWeight: 600
+                    }}
+                  >
+                    {item.level}
+                  </span>
+                </td>
+
+                {/* ACTIONS */}
+                <td style={{ padding: 14 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      gap: 8
+                    }}
+                  >
+                    {/* REMOVE */}
+                    <button
+                      onClick={() => changeStock(item.id, "remove")}
+                      style={actionBtn("#ef4444")}
+                    >
+                      −
+                    </button>
+
+                    {/* ADD */}
+                    <button
+                      onClick={() => changeStock(item.id, "add")}
+                      style={actionBtn("#22c55e")}
+                    >
+                      +
+                    </button>
+
+                    {/* DELETE */}
+                    <button
+                      onClick={() => deleteItem(item.id, item.name)}
+                      style={actionBtn("#111827")}
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  </div>
+);
+
 
           return (
             <div style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
@@ -739,7 +1027,25 @@ const deleteBtn = {
 
                 {/* Top Buttons */}
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginBottom: 5 }}>
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => router.push("/")} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#ef4444", color: "white", cursor: "pointer", fontWeight: "bold" }}>← Logout</motion.button>
+                  <motion.button
+  whileHover={{ scale: 1.05 }}
+  whileTap={{ scale: 0.95 }}
+  onClick={() => {
+    localStorage.removeItem("currentUser"); // ✅ remove saved account
+    router.push("/"); // redirect to home
+  }}
+  style={{
+    padding: "8px 16px",
+    borderRadius: 8,
+    border: "none",
+    background: "#ef4444",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: "bold",
+  }}
+>
+  ← Logout
+</motion.button>
                   {page === "items" && (<button onClick={() => setIsAdding(true)} style={{ background: "#2563eb", color: "white", padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold" }}>Add New Item</button>
                 )} </div>
 
@@ -949,61 +1255,74 @@ const deleteBtn = {
 
 
 
-                {/* Items Table */}
-                {page === "items" && (
-                  
-                  <div>
-                     <h3
-                      style={{ fontSize: 22, fontWeight: "bold", marginBottom: 10, color: "#111827"}}>
-                      Supplies
-                    </h3>
-                    <input type="text" placeholder="Search item..." value={search} onChange={e => setSearch(e.target.value)} style={{ padding: 10, borderRadius: 12, border: "1px solid #ccc", flex: 1, marginBottom: 10, width: "100%" }} />
-                    <table style={{ width: "100%", borderCollapse: "collapse", background: "white", borderRadius: 12, overflow: "hidden", boxShadow: "0 5px 15px rgba(0,0,0,0.1)", tableLayout: "fixed" }}>
-                      <thead style={{
-  background: "#166534",
-  color: "white",
-  fontSize: 13,
-  textTransform: "uppercase",
-  letterSpacing: 0.5
+{page === "items" && (
+  <div style={{ width: "100%" }}>
+    
+    {/* HEADER */}
+    <div style={{
+      marginBottom: 20,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 10
+    }}>
+      <h2 style={{
+  fontSize: 28,
+  fontWeight: "bold",
+  color: "#111827",
+  marginBottom: 20
 }}>
-                        <tr>
-                          <th style={{ padding: 12 }}>ID</th>
-                          <th style={{ padding: 12, textAlign: "left" }}>Item Name</th>
-                          <th style={{ padding: 12, textAlign: "center" }}>Stock Available</th>
-                          <th style={{ padding: 12, textAlign: "center" }}>Level</th>
-                          <th style={{ padding: 12, textAlign: "center" }}>Controls</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredItems.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>No items found</td>
-                          </tr>
-                        ) : filteredItems.map(item => (
-                          <tr key={item.id}>
-                            <td style={{ padding: 10, textAlign: "center" }}>{item.id}</td>
-                            <td style={{ padding: 10 }}>{item.name}</td>
-                            <td style={{ padding: 10, textAlign: "center" }}>
-                                  {item.variants && item.variants.length > 0 ? (
-                                    item.variants.map(v => `${v.type} x${v.stock}`).join(", ")
-                                  ) : item.serials && item.serials.length > 0 ? (
-                                    item.serials.map(s => s.serial).join(", ")
-                                  ) : (
-                                    item.stock
-                                  )}
-                                </td>
-                            <td style={{ padding: 10, textAlign: "center" }}>{item.level}</td>
-                            <td style={{ padding: 10, textAlign: "center" }}>
-                              <button onClick={() => changeStock(item.id, "remove")} style={{ background: "#ef4444", border: "none", padding: "5px 10px", marginRight: 10, borderRadius: 6, color: "white", cursor: "pointer" }}>-</button>
-                              <button onClick={() => changeStock(item.id, "add")} style={{ background: "#22c55e", border: "none", padding: "5px 10px", borderRadius: 6, color: "white", cursor: "pointer" }}>+</button>
-                              <button onClick={() => deleteItem(item.id, item.name)} style={{ background: "#b91c1c", border: "none", padding: "5px 10px", marginLeft: 10, borderRadius: 6, color: "white", cursor: "pointer" }}>Delete</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+  Supplies 
+  <span style={{
+        fontSize: 12,
+        background: "#111827",
+        color: "white",
+        padding: "5px 16px",
+        borderRadius: 20,
+        marginLeft: 10,
+        fontWeight: "bold"
+  }}>
+    ({totalItems} total)
+  </span>
+</h2>
+    </div>
+
+    {/* SEARCH */}
+    <input
+      type="text"
+      placeholder="Search item..."
+      value={search}
+      onChange={e => setSearch(e.target.value)}
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        border: "1px solid #ddd",
+        marginBottom: 25,
+        width: "100%",
+        fontSize: 16
+      }}
+    />
+
+    {/* CONSUMABLES */}
+    <SectionHeader
+      title="Consumables"
+      count={totalConsumables}
+      color="#16a34a"
+    />
+    {renderTable(consumableItems)}
+
+    {/* NON-CONSUMABLES */}
+    <SectionHeader
+      title="Non-Consumables"
+      count={totalNonConsumables}
+      color="#2563eb"
+    />
+    {renderTable(nonConsumableItems)}
+
+  </div>
+)}
+
 
 {page === "history" && (
   <>
@@ -1076,7 +1395,7 @@ const deleteBtn = {
           <th style={{ padding: 10 }}>Student</th>
           <th style={{ padding: 10 }}>Section</th>
           <th style={{ padding: 10 }}>Items</th>
-          <th style={{ padding: 10 }}>Date</th>
+          <th style={{ padding: 10 }}>Date Issued</th>
           <th style={{ padding: 10 }}>Status</th>
           <th style={{ padding: 10 }}>Issued By</th>
           <th style={{ padding: 10 }}>Action</th>
@@ -1116,9 +1435,9 @@ const deleteBtn = {
 
               <td style={{ padding: 10 }}>
                                 <div style={{ fontSize: 13 }}>
-                  <div>{new Date(b.date).toLocaleDateString()}</div>
+                  <div>{b.selectedDate}</div>
                   <div style={{ color: "#6b7280", fontSize: 12 }}>
-                    {new Date(b.date).toLocaleTimeString()}
+                   {formatTime12(b.selectedTime)}
                   </div>
                 </div>
               </td>
@@ -1252,19 +1571,20 @@ const deleteBtn = {
   </span>
 </h3>
 
-    <table style={{
+   <table style={{
       width: "100%",
       marginTop: 10,
       borderCollapse: "collapse",
       background: "white",
       borderRadius: 12,
       overflow: "hidden",
-      boxShadow: "0 5px 15px rgba(0,0,0,0.1)"
+      boxShadow: "0 5px 15px rgba(0,0,0,0.1)",
+      
     }}>
       <thead style={{
   background: "#166534",
   color: "white",
-  fontSize: 13,
+  fontSize: 12,
   textTransform: "uppercase",
   letterSpacing: 0.5
 }}>
@@ -1273,7 +1593,8 @@ const deleteBtn = {
           <th style={{ padding: 10 }}>Student</th>
           <th style={{ padding: 10 }}>Section</th>
           <th style={{ padding: 10 }}>Items</th>
-          <th style={{ padding: 10 }}>Returned Date</th>
+          <th style={{ padding: 10 }}>Date Issued</th>
+          <th style={{ padding: 10 }}>Date Returned</th>
           <th style={{ padding: 10 }}>Issued By</th>
           <th style={{ padding: 10 }}>Returned By</th>
           <th style={{ padding: 10 }}>Remarks</th>
@@ -1349,8 +1670,17 @@ const deleteBtn = {
                   );
                 })}
               </td>
+              
+              <td style={{ padding: 10 }}>
+                                <div style={{ fontSize: 13 }}>
+                  <div>{b.selectedDate}</div>
+                  <div style={{ color: "#6b7280", fontSize: 12 }}>
+                   {formatTime12(b.selectedTime)}
+                  </div>
+                </div>
+              </td>
 
-               <td style={{ padding: 10 }}>
+               <td style={{ textAlign: "center" }}>
                                 <div style={{ fontSize: 13 }}>
                   <div>{new Date(b.date).toLocaleDateString()}</div>
                   <div style={{ color: "#6b7280", fontSize: 12 }}>
@@ -1496,9 +1826,6 @@ const deleteBtn = {
           gap: 15,
         }}
       >
-        <p style={{ fontWeight: 600 }}>
-          Student: <span style={{ fontWeight: 400 }}>{selectedReturn.studentName}</span>
-        </p>
 
         {/* ISSUE VIEW MODE */}
         {selectedReturn.incident ? (
@@ -1514,7 +1841,15 @@ const deleteBtn = {
           </>
         ) : (
           /* NORMAL RETURN MODE */
-          selectedReturn.items.map((item: any) => (
+        selectedReturn.items
+          .filter((item: any) => {
+            if (!item || !item.name) return true; // keep item if invalid (avoid crash)
+
+            return !consumables.some(c =>
+              item.name.toString().toLowerCase().includes(c.toLowerCase())
+            );
+          })
+          .map((item: any) => (
             <div
                 key={item.name}
                 style={{
@@ -1769,11 +2104,11 @@ const deleteBtn = {
       <div style={{ fontSize: 40 }}>⚠️</div>
 
       <h3 style={{ fontSize: 18, fontWeight: "bold", marginTop: 10 }}>
-        Confirm Done
+        VERIFY BORROW
       </h3>
 
       <p style={{ fontSize: 14, color: "#6b7280", marginTop: 8 }}>
-        Are you sure you want to mark this borrow as DONE?
+        Are you sure you want to Confirm the Request?
       </p>
 
       <div
@@ -1841,7 +2176,7 @@ const deleteBtn = {
       fontWeight: "bold",
     }}
   >
-    ✅ Done
+    ✅ Confirm
   </button>
 
 
@@ -2165,7 +2500,7 @@ const deleteBtn = {
                           textAlign: "right",
                         }}
                       >
-                        {msg.timestamp ? formatMessageTime(msg.timestamp) : ""}
+                        {msg.createdAt ? formatMessageTime(msg.createdAt) : ""}
                       </div>
                     </div>
                   </div>
@@ -2176,46 +2511,54 @@ const deleteBtn = {
             </div>
 
             {/* INPUT */}
-            <div
-              style={{
-                display: "flex",
-                padding: 10,
-                gap: 8,
-                borderTop: "1px solid #eee",
-                background: "#fff",
-              }}
-            >
-              <input
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                placeholder="Type a reply..."
-                style={{
-                  flex: 1,
-                  padding: 10,
-                  borderRadius: 10,
-                  border: "1px solid #ccc",
-                  outline: "none",
-                  color: "#111827",
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") sendReply();
-                }}
-              />
-              <button
-                onClick={sendReply}
-                style={{
-                  background: "#22c55e",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "0 16px",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                Send
-              </button>
-            </div>
+           <div
+  style={{
+    display: "flex",
+    padding: 10,
+    gap: 8,
+    borderTop: "1px solid #eee",
+    background: "#fff",
+  }}
+>
+  <input
+    value={reply}
+    onChange={(e) => setReply(e.target.value)}
+    placeholder="Type a reply..."
+    style={{
+      flex: 1,
+      padding: 10,
+      borderRadius: 10,
+      border: "1px solid #ccc",
+      outline: "none",
+      color: "#111827",
+      background: "#fff",
+    }}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" && !isSendingReply) {
+        e.preventDefault(); // 🚫 stop double trigger
+        sendReply();
+      }
+    }}
+  />
+
+  <button
+    onClick={sendReply}
+    disabled={isSendingReply}
+    style={{
+      background: isSendingReply ? "#9ca3af" : "#22c55e",
+      color: "white",
+      border: "none",
+      borderRadius: 10,
+      padding: "0 16px",
+      cursor: isSendingReply ? "not-allowed" : "pointer",
+      fontWeight: 600,
+      transition: "0.2s",
+      opacity: isSendingReply ? 0.7 : 1,
+    }}
+  >
+    {isSendingReply ? "..." : "Send"}
+  </button>
+</div>
           </>
         )}
       </div>

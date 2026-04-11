@@ -134,7 +134,7 @@ const confirmSubmission = () => {
         <h1 style={{ letterSpacing: "2px", fontSize: "clamp(22px,4vw,30px)" }}>STUDENT INFORMATION</h1>
 
         {/* FORM */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "30px", marginTop: "30px" }}>
+        <div  style={{ display: "flex", flexWrap: "wrap", gap: "30px", marginTop: "30px" }}>
           <motion.div
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -224,7 +224,7 @@ const confirmSubmission = () => {
                 required
               />
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }} className="form-row">
                 <InputField
                   label="DATE *"
                   name="date"

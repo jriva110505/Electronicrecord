@@ -1,0 +1,115 @@
+/* =========================
+   🧭 SIDEBAR (UNZOOMED + FULL HEIGHT)
+========================= */
+.sidebar {
+  width: 300px; /* ✅ wider = not "stick" anymore */
+  background: #2e5d40;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 30px; /* ✅ more breathing space */
+  box-sizing: border-box;
+
+  gap: 12px; /* spacing between elements */
+}
+
+/* =========================
+   🧾 TOP SECTION (LEVELS)
+========================= */
+.sidebar > div:first-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* title */
+.sidebar h3 {
+  color: #fff;
+  margin-bottom: 20px;
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+
+/* =========================
+   🔘 LEVEL BUTTONS
+========================= */
+.sidebar button {
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 12px;
+
+  border: none;
+  border-radius: 14px;
+
+  background: #15803d;
+  color: white;
+
+  text-align: left;
+  font-size: 15px;
+
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+/* hover effect */
+.sidebar button:hover {
+  background: #22c55e;
+  transform: translateX(3px);
+}
+
+/* active button (if you use .active class) */
+.sidebar button.active {
+  background: #22c55e;
+}
+
+/* =========================
+   🔴 BACK BUTTON (BOTTOM)
+========================= */
+.sidebar > button {
+  margin-top: auto;
+  background: #ef4444;
+  font-weight: bold;
+  font-size: 15px;
+  padding: 16px;
+}
+
+/* =========================
+   📱 MOBILE RESPONSIVE
+========================= */
+@media (max-width: 600px) {
+  .sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: relative !important;
+
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    padding: 10px !important;
+    gap: 6px;
+  }
+
+  .sidebar h3 {
+    display: none;
+  }
+
+  .sidebar button {
+    flex: 1 1 30%;
+    font-size: 11px !important;
+    padding: 10px !important;
+    text-align: center;
+    border-radius: 10px;
+  }
+
+  .sidebar > button {
+    flex: 1 1 100%;
+  }
+}
