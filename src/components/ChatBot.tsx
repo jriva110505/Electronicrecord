@@ -214,36 +214,60 @@ export default function StudentChatBox() {
                 padding: 20,
               }}
             >
-              <div style={{ width: "100%", maxWidth: 250 }}>
-                <input
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Enter your name & Section"
-                  style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "1px solid #ccc",
-                    marginBottom: 10,
-                    textAlign: "center",
-                  }}
-                />
+              <div style={{ width: "100%", maxWidth: 260 }}>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Enter your name & section"
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: 10,
+                border: "1px solid #d1d5db",
+                marginBottom: 12,
+                textAlign: "center",
+                fontSize: 14,
+                outline: "none",
+                color: "#111",
+                background: "#f9fafb",
+                transition: "all 0.2s ease",
+                boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
+              }}
+              onFocus={e => {
+                e.currentTarget.style.border = "1px solid #22c55e";
+                e.currentTarget.style.background = "#ffffff";
+                e.currentTarget.style.boxShadow =
+                  "0 0 0 3px rgba(34,197,94,0.15)";
+              }}
+              onBlur={e => {
+                e.currentTarget.style.border = "1px solid #d1d5db";
+                e.currentTarget.style.background = "#f9fafb";
+                e.currentTarget.style.boxShadow =
+                  "inset 0 1px 2px rgba(0,0,0,0.05)";
+              }}
+            />
 
-                <button
-                  onClick={saveName}
-                  style={{
-                    width: "100%",
-                    padding: 10,
-                    background: "#22c55e",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                  }}
-                >
-                  Save Name
-                </button>
-              </div>
+            <button
+              onClick={saveName}
+              style={{
+                width: "100%",
+                padding: "12px",
+                background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                fontWeight: "600",
+                letterSpacing: "0.3px",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                boxShadow: "0 4px 10px rgba(34,197,94,0.3)",
+              }}
+              onMouseDown={e => (e.currentTarget.style.transform = "scale(0.97)")}
+              onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+            >
+              Save Name
+            </button>
+          </div>
             </div>
           )}
 

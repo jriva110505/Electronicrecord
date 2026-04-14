@@ -49,6 +49,8 @@ export default function SuppliesPage() {
   const [instructorName, setInstructorName] = useState("");
   const [section, setSection] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState("idle");
 
   const levels = ["All Levels", "1st Level", "2nd Level", "3rd Level", "4th Level", "Others", "Rooms"];
 
@@ -680,22 +682,24 @@ useEffect(() => {
   };
 
 const handleCheckout = async () => {
-  // Trim and validate email first
+  if (checkoutStatus === "loading") return;
+
   const email = studentEmail.trim();
 
   if (!email) {
     alert("❌ Please enter your email!");
-    return; // stop submission
+    return;
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     alert("❌ Please enter a valid email address!");
-    return; // stop submission
+    return;
   }
 
+  setCheckoutStatus("loading"); // 🔥 START
+
   try {
-    // 🔻 Deduct stock
     for (const item of cart) {
       await fetch(`https://dbsupplyrecord-2.onrender.com/items/${item.id}/remove-stock`, {
         method: "PATCH",
@@ -704,7 +708,6 @@ const handleCheckout = async () => {
       });
     }
 
-    // 🔥 ALWAYS SAVE (THIS IS THE FIX)
     const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
 
     const newBorrow = {
@@ -712,45 +715,10 @@ const handleCheckout = async () => {
       studentName,
       instructorName,
       section,
-      email, // ✅ already validated
+      email,
       items: cart,
       selectedDate,
       selectedTime,
-      date: new Date().toISOString(),
-      returned: false,
-      approved: false, // ✅ NEW FLAG
-    };
-
-    localStorage.setItem(
-      "borrowHistory",
-      JSON.stringify([...existing, newBorrow])
-    );
-
-    setCart([]);
-    setShowReceipt(false);
-    setShowSuccessModal(true);
-
-    // auto close after 3 seconds
-    setTimeout(() => {
-      setShowSuccessModal(false);
-    }, 3000);
-
-    const refresh = await fetch("https://dbsupplyrecord-2.onrender.com/items");
-    setItems(await refresh.json());
-
-  } catch (err) {
-    console.error(err);
-
-    // 🔥 EVEN IF ERROR → STILL SAVE
-    const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
-
-    const newBorrow = {
-      id: Date.now(),
-      studentName,
-      instructorName,
-      section,
-      email, // ✅ validated
-      items: cart,
       date: new Date().toISOString(),
       returned: false,
       approved: false,
@@ -761,7 +729,25 @@ const handleCheckout = async () => {
       JSON.stringify([...existing, newBorrow])
     );
 
-    showToast("Saved locally, but checkout failed ❌");
+    setCart([]);
+    setShowReceipt(false);
+
+    setCheckoutStatus("success"); // ✅ SUCCESS
+
+    // auto close after 3s
+    setTimeout(() => {
+      setCheckoutStatus("idle");
+    }, 3000);
+
+    // background refresh
+    fetch("https://dbsupplyrecord-2.onrender.com/items")
+      .then(res => res.json())
+      .then(data => setItems(data));
+
+  } catch (err) {
+    console.error(err);
+
+    setCheckoutStatus("error"); // ❌ ERROR
   }
 };
 
@@ -1986,7 +1972,7 @@ if (selectedLevel === "Rooms") {
         <p><b>Instructor:</b> {instructorName}</p>
         <p><b>Course:</b> {section}</p>
         <p><b>Date:</b> {selectedDate}</p>
-        <p><b>Time:</b>{formatTime12(selectedTime)}</p>
+        <p><b>Time:</b> {formatTime12(selectedTime)}</p>
       </div>
 
       {/* ITEMS */}
@@ -2076,7 +2062,8 @@ if (selectedLevel === "Rooms") {
     </motion.div>
   </div>
 )}
-{showSuccessModal && (
+
+{checkoutStatus !== "idle" && (
   <div
     style={{
       position: "fixed",
@@ -2085,32 +2072,92 @@ if (selectedLevel === "Rooms") {
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      zIndex: 3000,
+      zIndex: 4000,
     }}
   >
     <motion.div
+      key={checkoutStatus}
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.8, opacity: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.25 }}
       style={{
-        background: "#ffffff",
+        background: "#fff",
         borderRadius: 20,
+        padding: "30px 25px",
         width: "90%",
         maxWidth: 400,
-        padding: "32px 24px",
         textAlign: "center",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.25)",
+        boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
       }}
     >
-      <div style={{ fontSize: 60, color: "#22c55e", marginBottom: 16 }}>✔️</div>
-      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#111827" }}>
-        Thank You for Borrowing!
-      </h2>
-      <p style={{ marginTop: 12, fontSize: 15, color: "#4b5563", lineHeight: 1.5 }}>
-        Admin will process your request shortly. <br />
-        Please wait for admin to verify your borrow details. Thank you!!
-      </p>
+      {/* LOADING */}
+      {checkoutStatus === "loading" && (
+        <>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+            style={{
+              width: 50,
+              height: 50,
+              margin: "0 auto 20px",
+              border: "5px solid #e5e7eb",
+              borderTop: "5px solid #22c55e",
+              borderRadius: "50%",
+            }}
+          />
+          <h3>Processing your request...</h3>
+          <p style={{ fontSize: 14, color: "#666" }}>
+            Please wait and do not close this window
+          </p>
+        </>
+      )}
+
+      {/* SUCCESS */}
+      {checkoutStatus === "success" && (
+        <>
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            style={{
+              fontSize: 60,
+              color: "#22c55e",
+              marginBottom: 15,
+            }}
+          >
+            ✔️
+          </motion.div>
+          <h2>Request Submitted!</h2>
+          <p style={{ fontSize: 14, color: "#555" }}>
+            Admin will process your request shortly.
+          </p>
+        </>
+      )}
+
+      {/* ERROR */}
+      {checkoutStatus === "error" && (
+        <>
+          <div style={{ fontSize: 50, marginBottom: 10 }}>❌</div>
+          <h3>Something went wrong</h3>
+          <p style={{ fontSize: 14, color: "#666" }}>
+            Saved locally, but server failed.
+          </p>
+
+          <button
+            onClick={() => setCheckoutStatus("idle")}
+            style={{
+              marginTop: 15,
+              padding: "10px 20px",
+              borderRadius: 8,
+              border: "none",
+              background: "#ef4444",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
+        </>
+      )}
     </motion.div>
   </div>
 )}

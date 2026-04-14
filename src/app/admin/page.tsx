@@ -1046,7 +1046,8 @@ const totalNonConsumables = nonConsumableItems.length;
 >
   ← Logout
 </motion.button>
-                  {page === "items" && (<button onClick={() => setIsAdding(true)} style={{ background: "#2563eb", color: "white", padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold" }}>Add New Item</button>
+                  {page === "items" &&
+                   (<button onClick={() => setIsAdding(true)} style={{ background: "#2563eb", color: "white", padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold" }}>Add New Item</button>
                 )} </div>
 
                 {/* Add Modal */}

@@ -163,14 +163,24 @@ export default function About(): JSX.Element {
           Electronic Central Supplies Record
         </h2>
 
-        <Image
-          src="/ncf.webp"
-          alt="Logo"
-          width={60}
-          height={60}
-          style={{ borderRadius: "50%" }}
-        />
-      </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <Image
+            src="/ncf.webp"
+            alt="Logo 1"
+            width={55}
+            height={55}
+            style={{ borderRadius: "50%" }}
+          />
+        
+          <Image
+            src="/CHS.png" // 👈 change this to your second logo path
+            alt="Logo 2"
+            width={55}
+            height={55}
+            style={{ borderRadius: "50%" }}
+          />
+        </div>
+              </div>
 
       {/* MAIN CONTENT */}
       <div style={{ padding: "10px", maxWidth: "1200px", margin: "30px auto" }}>
