@@ -584,7 +584,9 @@ const addVariantToCart = (variant: string) => {
   
 const filteredItems = items
   .filter((item) => {
-    // 🚀 Only apply level filter if NO procedure selected
+    const itemName = (item.name || "").toLowerCase().trim();
+
+    // No procedures → filter by level only
     if (!requiredItems.length) {
       if (
         selectedLevel !== "All Levels" &&
@@ -593,23 +595,19 @@ const filteredItems = items
       ) {
         return false;
       }
+      return true;
     }
 
-    // ✅ If no procedure selected → show all
-    if (!requiredItems.length) return true;
-
-    // ✅ EXACT MATCH ONLY
+    // With procedures → match items
     return requiredItems.some((needed: string) => {
-      const itemName = item.name?.toLowerCase().trim();
       const neededName = needed.toLowerCase().trim();
-
-      return itemName === neededName;
+      return itemName.includes(neededName);
     });
   })
   .filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase())
+    (item.name || "").toLowerCase().includes(search.toLowerCase())
   )
-  .sort((a, b) => a.name.localeCompare(b.name));
+  .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   
   // Cart actions
 const openReceipt = () => {
@@ -708,21 +706,30 @@ const handleCheckout = async () => {
       });
     }
 
-    const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
+const existing = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
 
-    const newBorrow = {
-      id: Date.now(),
-      studentName,
-      instructorName,
-      section,
-      email,
-      items: cart,
-      selectedDate,
-      selectedTime,
-      date: new Date().toISOString(),
-      returned: false,
-      approved: false,
-    };
+// ✅ generate ID ONCE
+const id = Date.now().toString();
+
+// ✅ pass id + time
+const transactionNo = generateTransactionId(id, selectedTime);
+
+const newBorrow = {
+  id,
+  transactionNo, // 🔥 use transactionNo (keep consistent name)
+
+  studentName,
+  instructorName,
+  section,
+  email,
+  items: cart,
+  selectedDate,
+  selectedTime,
+  date: new Date().toISOString(),
+
+  returned: false,
+  approved: false,
+};
 
     localStorage.setItem(
       "borrowHistory",
@@ -751,24 +758,43 @@ const handleCheckout = async () => {
   }
 };
 
+const getPeriod = (time: string) => {
+  if (!time) return "AM"; // fallback
 
-     const isRoomAvailable = (room: string, date: string, start: string, end: string) => {
-    return !roomBookings.some((b) => {
-        if (b.done === true) return false; //
-      if (b.room !== room || b.date !== date) return false;
+  const hour = parseInt(time.split(":")[0]);
+  return hour >= 12 ? "PM" : "AM";
+};
 
-      const newStart = new Date(`${date}T${start}`);
-      const newEnd = new Date(`${date}T${end}`);
-      const existingStart = new Date(`${b.date}T${b.start}`);
-      const existingEnd = new Date(`${b.date}T${b.end}`);
+const generateTransactionId = (borrowId: string, time: string) => {
+  const period = getPeriod(time); // AM / PM
 
-      return (
-        (newStart >= existingStart && newStart < existingEnd) ||
-        (newEnd > existingStart && newEnd <= existingEnd) ||
-        (newStart <= existingStart && newEnd >= existingEnd)
-      );
-    });
-  };
+  // 🔒 unique per borrow
+  const key = `txn_${period}_${borrowId}`;
+
+  const existing = localStorage.getItem(key);
+  if (existing) return existing; // ✅ DO NOT REGENERATE
+
+  // counter per period
+  const counterKey = `txnCounter_${period}`;
+  let counter = parseInt(localStorage.getItem(counterKey) || "0") + 1;
+
+  localStorage.setItem(counterKey, counter.toString());
+
+  const txn = `${period}${String(counter).padStart(3, "0")}`;
+
+  localStorage.setItem(key, txn);
+
+  return txn;
+};
+
+const timeSlots = [];
+for (let hour = 7; hour < 23; hour++) {
+  const start = `${String(hour).padStart(2, "0")}:00`;
+  const end = `${String(hour + 1).padStart(2, "0")}:00`;
+
+  timeSlots.push({ start, end });
+}
+
   // Date: 2024-06-01
   const formatDate = (date: Date) => {
     const year = date.getFullYear();
@@ -1256,86 +1282,185 @@ if (selectedLevel === "Rooms") {
       boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
     }}
   >
-    <h2 style={{ textAlign: "center", marginBottom: 10 }}>
-      📅 Book {selectedRoom}
-    </h2>
-  <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-    <span style={{ color: "#16a34a" }}> Choose your Prefrered Time</span>
-  </div>
+  <div
+  style={{
+    textAlign: "center",
+    marginBottom: 15,
+    padding: "12px 16px",
+    borderRadius: 12,
+    background: "linear-gradient(135deg, #f0fdf4, #e0f2fe)",
+    border: "1px solid #d1fae5",
+  }}
+>
+  <h2
+    style={{
+      margin: 0,
+      fontSize: 20,
+      fontWeight: 700,
+      color: "#166534",
+      letterSpacing: "0.5px",
+    }}
+  >
+    📅 Room Booking
+  </h2>
 
+  <p
+    style={{
+      fontSize: 13,
+      color: "#374151",
+      marginTop: 6,
+      marginBottom: 0,
+    }}
+  >
+    Booking for{" "}
+    <span style={{ fontWeight: 600, color: "#065f46" }}>
+      {selectedRoom}
+    </span>{" "}
+    on{" "}
+    <span
+      style={{
+        fontWeight: 600,
+        background: "#dcfce7",
+        padding: "2px 8px",
+        borderRadius: 6,
+        color: "#166534",
+      }}
+    >
+      {selectedDate}
+    </span>
+  </p>
+</div>
 
-  {/* TIME INPUT */}
-  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-    <label style={{ fontWeight: 600 }}>Time In</label>
-    <input
-      type="time"
-      value={startTime}
-      min={currentTime} // ⛔ block past time
-      onChange={(e) => setStartTime(e.target.value)}
-      style={{ padding: 8, borderRadius: 8, border: "1px solid #ccc" }}
-    />
+<div style={{
+  background: "#f0fdf4",
+  padding: 10,
+  borderRadius: 10,
+  fontSize: 13,
+  color: "#166534",
+  textAlign: "center"
+}}>
+  🟢 Available &nbsp;&nbsp; 🔴 Booked &nbsp;&nbsp; 🔵 Selected
+</div>
 
-    <label style={{ fontWeight: 600 }}>Time Out</label>
-    <input
-      type="time"
-      value={endTime}
-      min={startTime || currentTime} // ⛔ must be after startTime
-      onChange={(e) => setEndTime(e.target.value)}
-      style={{ padding: 8, borderRadius: 8, border: "1px solid #ccc" }}
-    />
-  </div>
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: 8,
+    marginTop: 10,
+  }}
+>
+  {timeSlots.map((slot, index) => {
+   const now = new Date();
 
+  const booking = roomBookings.find((b) => {
+    if (b.room !== selectedRoom || b.date !== selectedDate) return false;
+
+    // IMPORTANT: ignore completed bookings
+    if (b.done) return false;
+
+    const bookingStart = new Date(`${b.date}T${b.start}`);
+    const bookingEnd = new Date(`${b.date}T${b.end}`);
+    const slotStart = new Date(`${selectedDate}T${slot.start}`);
+    const slotEnd = new Date(`${selectedDate}T${slot.end}`);
+
+    if (bookingEnd <= now) return false;
+
+    return slotStart < bookingEnd && slotEnd > bookingStart;
+  });
+
+  const available = !booking;
+
+  const isSelected =
+    startTime === slot.start && endTime === slot.end;
+
+    return (
+      <div
+        key={index}
+        title={booking ? "🔴 Room not available" : "🟢 Available"}
+        
+        onClick={() => {
+          if (!available) return;
+
+          setStartTime(slot.start);
+          setEndTime(slot.end);
+        }}
+        style={{
+          padding: "8px 6px",
+          borderRadius: 8,
+          textAlign: "center",
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: available ? "pointer" : "not-allowed",
+          background: isSelected
+            ? "#2563eb"
+            : available
+            ? "#22c55e"
+            : "#ef4444",
+          color: "white",
+        }}
+      >
+        {formatTime12(slot.start)} - {formatTime12(slot.end)}
+
+        
+      </div>
+    );
+  })}
+</div>
+
+    {/* ACTION BUTTONS */}
+<div style={{ display: "flex", gap: 10, marginTop: 15 }}>
   <button
     onClick={() => {
       if (!startTime || !endTime) {
-        setAvailabilityMsg("⚠️ Please select time in and time out");
+        alert("Please select a time slot");
         return;
       }
 
       if (startTime >= endTime) {
-  setAvailabilityMsg("❌ Invalid time range");
+        alert("End time must be after start time");
+        return;
+      }
 
-  setTimeout(() => {
-    setAvailabilityMsg("");
-  }, 3000);
+      const newBooking = {
+        id: Date.now(),
+        room: selectedRoom,
+        course: section || "N/A",
+        date: selectedDate,
+        start: startTime,
+        end: endTime,
+        studentName: studentName,
+        instructorName: instructorName,
+        section: section,
+        done: false,
+      };
 
+const selectedStart = new Date(`${selectedDate}T${startTime}`);
+const selectedEnd = new Date(`${selectedDate}T${endTime}`);
+const now = new Date();
+
+// Only block if booking is TODAY AND time is past
+const isToday = selectedDate === formatDate(new Date());
+
+if (isToday && selectedStart < now) {
+  alert("⛔ Cannot select past time");
   return;
 }
 
-          const now = new Date();
-          const selectedStart = new Date(`${today}T${startTime}`);
+      const updated = [...roomBookings, newBooking];
+      setRoomBookings(updated);
+      localStorage.setItem("roomBookings", JSON.stringify(updated));
 
-          if (selectedStart < now) {
-            setAvailabilityMsg("⛔ Cannot select past time");
+      alert("✅ Room booked successfully!");
 
-            setTimeout(() => {
-              setAvailabilityMsg("");
-            }, 3000);
-
-            return;
-          }
-
-      const available = isRoomAvailable(selectedRoom!, today, startTime, endTime);
-
-      if (available) {
-        setAvailabilityMsg("✅ Room is AVAILABLE");
-
-        setTimeout(() => {
-          setAvailabilityMsg("");
-        }, 3000);
-      } else {
-        setAvailabilityMsg("❌ Room is NOT AVAILABLE");
-
-        setTimeout(() => {
-          setAvailabilityMsg("");
-        }, 3000);
-      }
+      setStartTime("");
+      setEndTime("");
+      setShowRoomModal(false);
     }}
-    
     style={{
-      marginTop: 10,
+      flex: 1,
       padding: 10,
-      background: "#2563eb",
+      background: "#16a34a",
       color: "white",
       border: "none",
       borderRadius: 8,
@@ -1343,120 +1468,25 @@ if (selectedLevel === "Rooms") {
       fontWeight: 600,
     }}
   >
-    Check Availability
+    Confirm
   </button>
 
-  {availabilityMsg && (
-    <div
-      style={{
-        marginTop: 10,
-        padding: 10,
-        borderRadius: 10,
-        background: availabilityMsg.includes("AVAILABLE")
-          ? "#dcfce7"
-          : "#fee2e2",
-        color: availabilityMsg.includes("AVAILABLE")
-          ? "#166534"
-          : "#991b1b",
-        fontWeight: 600,
-        textAlign: "center",
-      }}
-    >
-      {availabilityMsg}
-    </div>
-  )}
-
-    {/* INFO PREVIEW */}
-    {startTime && endTime && (
-    <div>
-      ⏱ Booking: Today | {startTime} - {endTime}
-    </div>
-  )}
-
-    {/* ACTION BUTTONS */}
-    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-      <button
-        onClick={() => {
-          // 🔴 VALIDATIONS
-          if (!startTime || !endTime) {
-            alert("Please fill all fields");
-            return;
-          }
-
-          if (startTime >= endTime) {
-            alert("End time must be after start time");
-            return;
-          }
-
-          if (availabilityMsg !== "✅ Room is AVAILABLE") {
-            alert("Please check availability first!");
-            return;
-          }
-
-          const newBooking = {
-            id: Date.now(),
-            room: selectedRoom,
-            course: section || "N/A",
-            date: today,
-            start: startTime,
-            end: endTime,
-            studentName: studentName,
-            instructorName: instructorName,
-            section: section,
-            done: false,
-          };
-
-          const selectedStart = new Date(`${today}T${startTime}`);
-
-            if (selectedStart < new Date()) {
-              alert("⛔ Cannot book past time");
-              return;
-            }
-
-          const updated = [...roomBookings, newBooking];
-          setRoomBookings(updated);
-          localStorage.setItem("roomBookings", JSON.stringify(updated));
-
-          alert("✅ Room booked successfully!");
-
-          // reset fields
-    
-          setStartTime("");
-          setEndTime("");
-          setShowRoomModal(false);
-        }}
-        style={{
-          flex: 1,
-          padding: 10,
-          background: "#16a34a",
-          color: "white",
-          border: "none",
-          borderRadius: 8,
-          cursor: "pointer",
-          fontWeight: 600,
-        }}
-      >
-        Confirm
-      </button>
-
-      <button
-        onClick={() => {
-          setShowRoomModal(false);
-        }}
-        style={{
-          flex: 1,
-          padding: 10,
-          background: "#ef4444",
-          color: "white",
-          border: "none",
-          borderRadius: 8,
-          cursor: "pointer",
-          fontWeight: 600,
-        }}
-      >
-        Cancel
-      </button>
-    </div>
+  <button
+    onClick={() => setShowRoomModal(false)}
+    style={{
+      flex: 1,
+      padding: 10,
+      background: "#ef4444",
+      color: "white",
+      border: "none",
+      borderRadius: 8,
+      cursor: "pointer",
+      fontWeight: 600,
+    }}
+  >
+    Cancel
+  </button>
+</div>
   </motion.div>
       </motion.div>
     )}
@@ -1655,7 +1685,7 @@ if (selectedLevel === "Rooms") {
               alt={item.name}
               width={100}
               height={100}
-              style={{ objectFit: "contain", borderRadius: 16 }}
+              style={{ objectFit: "contain", borderRadius: 10 }}
             />
           </div>
 
@@ -2182,11 +2212,3 @@ if (selectedLevel === "Rooms") {
     </div>
   );
 } 
-
-
-
-
-
-function matchItem(name: string, needed: string) {
-  throw new Error("Function not implemented.");
-}

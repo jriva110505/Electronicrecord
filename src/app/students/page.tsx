@@ -48,9 +48,17 @@ export default function Education(): JSX.Element {
     }
   };
 
- const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
-  setShowModal(true);  // Show modal on submit
+
+  const today = new Date().toISOString().split("T")[0];
+
+  if (formData.date < today) {
+    alert("❌ You cannot select a past date.");
+    return;
+  }
+
+  setShowModal(true);
 };
 
 const confirmSubmission = () => {
@@ -248,6 +256,7 @@ const confirmSubmission = () => {
                   value={formData.date}
                   onChange={handleChange}
                   required
+                   min={new Date().toISOString().split("T")[0]} // ✅ prevents past dates
                 />
 
                 <InputField
@@ -468,6 +477,7 @@ interface InputProps {
   type?: string;
   placeholder?: string;
   required?: boolean;
+  min?: string;
 }
 
 function InputField({
@@ -478,6 +488,7 @@ function InputField({
   type = "text",
   placeholder,
   required = false,
+  min,
 }: InputProps): JSX.Element {
   return (
     <div style={{ marginBottom: "20px", flex: "1 1 200px" }}>
@@ -490,6 +501,7 @@ function InputField({
         onChange={onChange}
         placeholder={placeholder}
         required={required}
+        min={min}
         style={{
           width: "100%",
           padding: "10px",

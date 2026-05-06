@@ -1,4 +1,3 @@
-// /app/api/send-receipt/route.ts (or /pages/api/send-receipt.ts)
 import nodemailer from "nodemailer";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -15,22 +14,41 @@ interface ReceiptData {
   email: string;
   items: ReceiptItem[];
   remarks?: string;
-  issuedBy?: string; // <-- added remarks field
+  issuedBy?: string;
+  status?: "APPROVED" | "DECLINED";
+  transactionNo?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const data: ReceiptData = await req.json();
-    const { studentName, instructorName, section, items, email, remarks, issuedBy } = data;
+
+    const {
+      studentName,
+      instructorName,
+      section,
+      items = [],
+      email,
+      remarks,
+      issuedBy,
+      status,
+      transactionNo,
+    } = data;
+
+    const isDeclined = status === "DECLINED";
 
     if (!email) {
-      console.error("No email provided in request");
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Email is required" },
+        { status: 400 }
+      );
     }
 
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error("EMAIL_USER or EMAIL_PASS not set in environment variables");
-      return NextResponse.json({ error: "Email credentials not configured" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Email credentials not configured" },
+        { status: 500 }
+      );
     }
 
     const transporter = nodemailer.createTransport({
@@ -41,150 +59,156 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Build items HTML table rows
-    const itemsHTML = items
-      .map(
-        (i) => `
-        <tr>
-          <td style="padding:8px;border-bottom:1px solid #eee;">${i.name}</td>
-          <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">${i.qty}</td>
-        </tr>`
-      )
-      .join("");
+    const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Central Supply Borrow Receipt",
+      subject: isDeclined
+        ? "Borrow Request Declined"
+        : "Central Supply Borrow Receipt",
+
       html: `
 <div style="font-family:Segoe UI,Arial,sans-serif;background:#f1f5f9;padding:30px;">
   <div style="max-width:650px;margin:auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 15px 40px rgba(0,0,0,0.08);">
 
-    <!-- HEADER -->
-    <div style="background:linear-gradient(135deg,#166534,#22c55e);color:white;padding:25px;text-align:center;">
-      <h2 style="margin:0;font-size:20px;letter-spacing:0.5px;">
-        Central Supply Office
+    <!-- HEADER (UNCHANGED DESIGN) -->
+    <div style="background:linear-gradient(135deg,${
+      isDeclined ? "#991b1b,#ef4444" : "#166534,#22c55e"
+    });color:white;padding:25px;text-align:center;">
+      
+      <h2 style="margin:0;font-size:20px;">
+        ${isDeclined ? "Borrow Request Declined" : "Central Supply Office"}
       </h2>
-      <p style="margin:6px 0 0 0;font-size:13px;opacity:0.9;">
-        Borrowing Receipt Confirmation
+
+      <p style="margin:6px 0 0 0;font-size:13px;">
+        ${isDeclined ? "Request not approved" : "Borrowing Receipt Confirmation"}
+      </p>
+
+      <!-- TRANSACTION NUMBER -->
+      <p style="margin-top:10px;font-size:13px;opacity:0.9;">
+        Transaction #: <strong>${transactionNo || "N/A"}</strong>
       </p>
     </div>
 
     <!-- BODY -->
     <div style="padding:25px;">
 
-      <!-- REMARKS (FORMAL STYLE) -->
-      ${remarks ? `
-      <div style="margin-bottom:20px;padding:14px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;">
-        <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">
-          REMARKS
+      <!-- DECLINE REASON -->
+      ${
+        isDeclined && remarks
+          ? `
+        <div style="margin-bottom:20px;padding:16px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;">
+          <div style="font-size:12px;color:#991b1b;margin-bottom:6px;">
+            REASON FOR DECLINE
+          </div>
+          <div style="font-size:14px;color:#7f1d1d;font-weight:600;">
+            ${remarks}
+          </div>
         </div>
-        <div style="font-size:14px;color:#111827;font-weight:500;">
-          ${remarks}
-        </div>
-      </div>` : ""}
+      `
+          : ""
+      }
 
-      <!-- FORMAL INFO TABLE -->
-      <table style="width:100%;font-size:14px;border-collapse:separate;border-spacing:0 10px;">
+      <!-- INFO TABLE -->
+      <table style="width:100%;font-size:14px;border-spacing:0 10px;">
 
         <tr>
           <td style="width:140px;color:#6b7280;">Student</td>
-          <td style="font-weight:600;color:#111827;">${studentName}</td>
+          <td style="font-weight:600;">${studentName}</td>
         </tr>
 
         <tr>
-          <td style="width:140px;color:#6b7280;">Instructor</td>
-          <td style="font-weight:600;color:#111827;">${instructorName}</td>
+          <td style="color:#6b7280;">Instructor</td>
+          <td style="font-weight:600;">${instructorName}</td>
         </tr>
 
         <tr>
-          <td style="width:140px;color:#6b7280;">Section</td>
+          <td style="color:#6b7280;">Section</td>
+          <td style="font-weight:600;">${section}</td>
+        </tr>
+
+        <tr>
+          <td style="color:#6b7280;">Processed By</td>
           <td>
-            <span style="font-weight:600;color:#111827;">
-              ${section}
-            </span>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="width:140px;color:#6b7280;">Issued By</td>
-          <td>
-            <span style="display:inline-block;padding:4px 10px;border-radius:6px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:600;">
+            <span style="background:#eef2ff;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;">
               ${issuedBy || "N/A"}
             </span>
           </td>
         </tr>
 
         <tr>
-          <td style="width:140px;color:#6b7280;">Date</td>
-          <td style="color:#111827;">${new Date().toLocaleDateString()}</td>
+          <td style="color:#6b7280;">Date</td>
+          <td>${new Date().toLocaleDateString()}</td>
         </tr>
 
         <tr>
-          <td style="width:140px;color:#6b7280;">Time</td>
-          <td style="color:#111827;">${new Date().toLocaleTimeString()}</td>
+          <td style="color:#6b7280;">Time</td>
+          <td>${new Date().toLocaleTimeString()}</td>
         </tr>
 
       </table>
 
-      <!-- ITEMS SECTION -->
-      <div style="margin-top:25px;">
-        <h3 style="margin-bottom:10px;color:#111827;font-size:16px;">
-          Borrowed Items
-        </h3>
+      <!-- ITEMS ONLY IF APPROVED -->
+      ${
+        !isDeclined
+          ? `
+        <div style="margin-top:25px;">
+          <h3 style="margin-bottom:10px;font-size:16px;">
+            Borrowed Items
+          </h3>
 
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
-          <thead>
-            <tr style="background:#f9fafb;">
-              <th style="padding:12px;text-align:left;border-bottom:2px solid #e5e7eb;">Item</th>
-              <th style="padding:12px;text-align:center;border-bottom:2px solid #e5e7eb;">Qty</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items
-              .map(
-                (i) => `
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead>
+              <tr style="background:#f9fafb;">
+                <th style="padding:12px;text-align:left;border-bottom:2px solid #e5e7eb;">Item</th>
+                <th style="padding:12px;text-align:center;border-bottom:2px solid #e5e7eb;">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items
+                .map(
+                  (i) => `
                 <tr>
-                  <td style="padding:12px;border-bottom:1px solid #f1f5f9;color:#111827;">
+                  <td style="padding:12px;border-bottom:1px solid #f1f5f9;">
                     ${i.name}
                   </td>
-                  <td style="padding:12px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:600;">
+                  <td style="padding:12px;text-align:center;font-weight:600;border-bottom:1px solid #f1f5f9;">
                     ${i.qty}
                   </td>
                 </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
+                )
+                .join("")}
+            </tbody>
+          </table>
 
-      <!-- SUMMARY -->
-      <div style="margin-top:20px;padding:12px;background:#f9fafb;border-radius:10px;font-size:14px;">
-        <strong>Total Items:</strong>
-        ${items.reduce((sum, i) => sum + i.qty, 0)}
-      </div>
+          <div style="margin-top:20px;padding:12px;background:#f9fafb;border-radius:10px;">
+            <strong>Total Items:</strong> ${totalItems}
+          </div>
 
-    </div>
+          <div style="margin-top:20px;padding:16px;background:#fff7ed;border-left:5px solid #f97316;border-radius:10px;">
+            <h4 style="margin:0 0 6px 0;color:#ea580c;">⚠ Return Reminder</h4>
+            <p style="margin:0;font-size:13px;">
+              Please return all borrowed supplies before 9:00 PM today.
+            </p>
+          </div>
+        </div>
+      `
+          : `
+        <div style="margin-top:20px;padding:16px;background:#fef2f2;border-left:5px solid #ef4444;border-radius:10px;">
+          <h4 style="margin:0 0 6px 0;color:#b91c1c;">Request Not Approved</h4>
+          <p style="margin:0;font-size:13px;">
+            Please contact the office if you have concerns.
+          </p>
+        </div>
+      `
+      }
 
-    <!-- REMINDER -->
-    <div style="margin:0 25px 25px 25px;padding:16px;background:#fff7ed;border-left:5px solid #f97316;border-radius:10px;">
-      <h4 style="margin:0 0 6px 0;color:#ea580c;">⚠ Return Reminder</h4>
-      <p style="margin:0;font-size:13px;color:#444;">
-        Please return all borrowed supplies <strong>before 9:00 PM today</strong>.
-      </p>
-      <p style="margin:6px 0 0 0;font-size:12px;color:#666;">
-        Late returns may trigger automatic notifications.
-      </p>
     </div>
 
     <!-- FOOTER -->
-    <div style="background:#f9fafb;padding:18px;text-align:center;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb;">
-      <p style="margin:0;font-weight:500;">
-        Electronic Central Supplies Record System
-      </p>
-      <p style="margin:4px 0 0 0;">
-        This is a system-generated receipt. No signature required.
-      </p>
+    <div style="background:#f9fafb;padding:18px;text-align:center;font-size:12px;color:#6b7280;">
+      Electronic Central Supplies System
     </div>
 
   </div>
@@ -193,11 +217,17 @@ export async function POST(req: NextRequest) {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.response);
 
-    return NextResponse.json({ success: true, info: info.response });
+    return NextResponse.json({
+      success: true,
+      message: isDeclined ? "Decline email sent" : "Receipt email sent",
+      info: info.response,
+    });
   } catch (err) {
-    console.error("Error sending receipt email:", err);
-    return NextResponse.json({ error: "Failed to send email", details: err }, { status: 500 });
+    console.error(err);
+    return NextResponse.json(
+      { error: "Failed to send email" },
+      { status: 500 }
+    );
   }
 }

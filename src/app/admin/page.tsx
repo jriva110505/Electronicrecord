@@ -4,7 +4,8 @@
         import { motion } from "framer-motion";
         import { useRouter } from "next/navigation";
         import { BarChart,  Bar,XAxis, YAxis, Tooltip, ResponsiveContainer, } from "recharts";
-
+        import { supabase } from "@/lib/supabase";
+        import "./Modal.css";
         
 
         interface Variant {
@@ -16,14 +17,16 @@
           serial: string;
         }
 
-        interface Item {
-          id: number;
-          name: string;
-          level: string;
-          stock?: number;
-          variants?: Variant[];
-          serials?: Serial[];
-        }
+     interface Item {
+  id: number;
+  name: string;
+  level: string;
+  stock?: number;
+  image: File | null;
+  itemType: 'consumable' | 'non_consumable';
+  variants?: Variant[];
+  serials?: Serial[];
+}
 
         interface Message {
           timestamp: any;
@@ -70,7 +73,27 @@
           const chatBoxRef = useRef<HTMLDivElement>(null);
 
           const [currentUser, setCurrentUser] = useState("");
-          
+
+       const [showDeclineModal, setShowDeclineModal] = useState(false);
+const [declineReason, setDeclineReason] = useState("");
+const [isProcessing, setIsProcessing] = useState(false);
+
+const [showSuccessModal, setShowSuccessModal] = useState(false);
+const [successMessage, setSuccessMessage] = useState("");
+const [successType, setSuccessType] = useState<"success" | "error">("success");
+
+const [showPrintConfirm, setShowPrintConfirm] = useState(false);
+const [selectedPaper, setSelectedPaper] =
+  useState<ProcedureType | "">("");
+const [showPaperSelect, setShowPaperSelect] = useState(false);
+
+type ProcedureType = "borrow-form" | "equipment-checklist" | "return-report";
+
+const procedureFiles: Record<string, string> = {
+  "borrow-form": "/procedures/borrow-form.pdf",
+  "equipment-checklist": "/procedures/equipment-checklist.pdf",
+  "return-report": "/procedures/return-report.pdf",
+};
   
           useEffect(() => {
   const user = localStorage.getItem("currentUser");
@@ -79,46 +102,43 @@
   }
 }, []);
 
-const consumables = [
-  "Tongue depressor",
-  "Tape",
-  "Suction catheter",
-  "Sterile syringe",
-  "Sterile mask",
-  "Lubricant",
-  "Betadine",
-  "Adhesive tape",
-  "Clean gloves",
-  "Alcohol",
-  "Cotton",
-  "Face mask",
-  "Bandage",
-  "Micropore tape",
-  "Toothpaste",
-  "Anti-septic mouthwash",
-  "Soap",
-  "Diaper",
-  "Oxytocin",
-  "Syringe",
-  "Surgical needle",
-  "Sterile lubricating jelly",
-  "Betadine",
-  "Urinary bag",
-  "Eye ointment (erythromycin)",
-  "Vitamin K syringe",
-  "Sterile sanitary pad",
-  "Adult diaper",
-  "Ultrasound gel",
-  "Lubricant",
-  "Antiseptic solutions",
-  "Gauze pad",
-  "IV fluid",
-  "Normal saline solution",
-  "Alcohol swabs",
-  "Hand sanitizer"
-];
+const handlePrintProcedure = (type: ProcedureType) => {
+  const fileUrl = procedureFiles[type];
+  if (!fileUrl) return;
 
-const consumablesList = consumables.map(i => i.toLowerCase());
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  iframe.src = fileUrl;
+
+  document.body.appendChild(iframe);
+
+  iframe.onload = () => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+
+    setTimeout(() => {
+      iframe.remove();
+    }, 1000);
+  };
+};
+
+// Pictures
+
+const uploadImage = async (file: File) => {
+  const fileName = `items/${Date.now()}-${file.name}`;
+
+  const { error } = await supabase.storage
+    .from("items") // MUST match bucket name
+    .upload(fileName, file);
+
+  if (error) throw error;
+
+  const { data } = supabase.storage
+    .from("items")
+    .getPublicUrl(fileName);
+
+  return data.publicUrl;
+};
 
 
 // messages load
@@ -393,44 +413,46 @@ const confirmDoneBorrow = () => {
   setPendingDone(null);
 };
 
- const markAsDone = async (borrow: any) => {
-  try {
-    // 🔥 SEND RECEIPT
-    await fetch("/reciept", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        studentName: borrow.studentName,
-        instructorName: borrow.instructorName,
-        section: borrow.section,
-        email: borrow.email,
-        items: borrow.items,
-        issuedBy: currentUser,
-      }),
-    });
+const markAsDone = async (borrow: any) => {
+  const transactionNo = borrow.transactionNo;
 
-    // ✅ UPDATE STATUS + ADMIN NAME
-    const updated = borrowHistory.map((b) =>
-      b.id === borrow.id
-        ? { 
-            ...b, 
-            done: true,
-            issuedBy: currentUser // 🔥 THIS IS THE FIX
-          }
-        : b
-    );
-
-    setBorrowHistory(updated);
-    localStorage.setItem("borrowHistory", JSON.stringify(updated));
-
-    alert("✅ Borrow approved & receipt sent!");
-  } catch (err) {
-    console.error(err);
-    alert("❌ Failed to send receipt");
+  if (!transactionNo) {
+    console.error("❌ Missing transaction number!");
+    alert("Missing transaction number!");
+    return;
   }
+
+  await fetch("/reciept", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      transactionNo,
+      studentName: borrow.studentName,
+      instructorName: borrow.instructorName,
+      section: borrow.section,
+      email: borrow.email,
+      items: borrow.items,
+      issuedBy: currentUser,
+      status: "APPROVED",
+    }),
+  });
+
+  const updated = borrowHistory.map((b: any) =>
+    b.id === borrow.id
+      ? {
+          ...b,
+          done: true,
+          issuedBy: currentUser,
+        }
+      : b
+  );
+
+  setBorrowHistory(updated);
+  localStorage.setItem("borrowHistory", JSON.stringify(updated));
 };
+
  
 
 useEffect(() => {
@@ -494,29 +516,85 @@ useEffect(() => {
 
   return () => clearInterval(interval); // cleanup on unmount
 }, []);
- const declineBorrow = () => {
+
+const declineBorrow = async (reason: string) => {
   if (!pendingDone) return;
 
-  // Load current borrow history
+  if (!reason.trim()) {
+    alert("Please enter a reason.");
+    return;
+  }
+
+  const transactionNo = pendingDone.transactionNo;
+
+  if (!transactionNo) {
+    console.error("❌ Missing transaction number!");
+    alert("Missing transaction number!");
+    return;
+  }
+
+  setIsProcessing(true);
+
+  try {
+    await fetch("/reciept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transactionNo,
+        studentName: pendingDone.studentName,
+        instructorName: pendingDone.instructorName,
+        section: pendingDone.section,
+        email: pendingDone.email,
+        items: pendingDone.items,
+        issuedBy: currentUser || "Admin",
+        remarks: reason,
+        status: "DECLINED",
+      }),
+    });
+
+    const stored = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
+
+    const updated = stored.filter(
+      (b: any) => b && b.id !== pendingDone.id
+    );
+
+    localStorage.setItem("borrowHistory", JSON.stringify(updated));
+    setBorrowHistory(updated);
+
+    setSuccessMessage("Request declined and email sent.");
+    setSuccessType("success");
+    setShowSuccessModal(true);
+
+    setTimeout(() => {
+      setShowSuccessModal(false);
+      setShowDeclineModal(false);
+      setPendingDone(null);
+      setDeclineReason("");
+    }, 1500);
+
+  } catch (err) {
+    console.error(err);
+
+    setSuccessMessage("Failed to send email.");
+    setSuccessType("error");
+    setShowSuccessModal(true);
+
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+useEffect(() => {
   const stored = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
 
-  // Remove the declined borrow
-  const updated = stored.filter((b: any) => b.id !== pendingDone.id);
-
-  // Save updated history
-  localStorage.setItem("borrowHistory", JSON.stringify(updated));
-  setBorrowHistory(updated);
-
-  // Close modal
-  setShowDoneConfirm(false);
-  setPendingDone(null);
-};
+  setBorrowHistory(stored); // ✅ JUST LOAD
+}, []);
 
           // Modal & new item state
           const [isAdding, setIsAdding] = useState(false);
           const [newItem, setNewItem] = useState({
             name: "",
-            image: "",
+           image: null as File | null,
             level: "1st Level",
             stock: 0,
             variants: [] as Variant[],
@@ -526,18 +604,27 @@ useEffect(() => {
           });
 
           // Load items
-         const reloadItems = async () => {
+const reloadItems = async () => {
   try {
     const res = await fetch("https://dbsupplyrecord-2.onrender.com/items");
     const data = await res.json();
 
-    // ✅ ensure safe defaults
-    const safeData = data.map((item: { id: any; name: any; image: any; level: any; stock: any; variants: any; serials: any; }) => ({
+    console.log("RAW API RESPONSE:", data);
+
+    // ✅ FIX: force array extraction
+    const itemsArray =
+      Array.isArray(data) ? data :
+      Array.isArray(data.data) ? data.data :
+      Array.isArray(data.items) ? data.items :
+      [];
+
+    const safeData = itemsArray.map((item: any) => ({
       id: item.id,
       name: item.name || "Unnamed Item",
-      image: item.image || null,
+      image: item.image || "",
       level: item.level || "1st Level",
       stock: item.stock ?? 0,
+      itemType: item.itemType || item.item_type,
       variants: Array.isArray(item.variants) ? item.variants : [],
       serials: Array.isArray(item.serials) ? item.serials : [],
     }));
@@ -545,6 +632,7 @@ useEffect(() => {
     setItems(safeData);
   } catch (err) {
     console.error("Failed to load items:", err);
+    setItems([]); // prevent crash
   }
 };
 
@@ -559,9 +647,11 @@ useEffect(() => {
         }, []);
 
           // Filtered items
-          const filteredItems = items.filter((item) =>
-            item.name.toLowerCase().includes(search.toLowerCase())
-          );
+          const filteredItems = items.filter((item: any) =>
+  (item.name || "")
+    .toLowerCase()
+    .includes(search.toLowerCase())
+);
 
           // Stock control
           const changeStock = async (id: number, type: "add" | "remove") => {
@@ -592,7 +682,7 @@ useEffect(() => {
           };
 
           // Add new item
- const addItem = async () => {
+const addItem = async () => {
   if (!newItem.name.trim() || !newItem.level.trim()) {
     alert("Please fill all fields");
     return;
@@ -614,11 +704,23 @@ useEffect(() => {
   }
 
   try {
-    // ✅ Safe object
+    let imageUrl = "";
+
+    // ✅ 1. Upload image to Supabase FIRST (if file exists)
+    if (newItem.image) {
+      imageUrl = await uploadImage(newItem.image); 
+      // uploadImage() returns public URL from Supabase
+    }
+
+    // ✅ 2. Send only URL to backend (MySQL)
     const itemData = {
       name: newItem.name || "Unnamed Item",
-      image: newItem.image || null,
+      image: imageUrl, // 👈 FIXED (URL, not file)
       level: newItem.level || "1st Level",
+     itemType:
+  newItem.hasSerials || newItem.hasVariants
+    ? "non_consumable"
+    : "consumable",
       stock: newItem.hasVariants || newItem.hasSerials ? 0 : newItem.stock,
       variants: newItem.hasVariants ? newItem.variants : [],
       serials: newItem.hasSerials ? newItem.serials : [],
@@ -633,9 +735,10 @@ useEffect(() => {
     if (res.ok) {
       alert("Item added successfully!");
       setIsAdding(false);
+
       setNewItem({
         name: "",
-        image: "",
+        image: null, // ✅ FIX (was "" before)
         level: "1st Level",
         stock: 0,
         variants: [],
@@ -643,8 +746,11 @@ useEffect(() => {
         hasVariants: false,
         hasSerials: false,
       });
+
       reloadItems();
-    } else alert("Failed to add item");
+    } else {
+      alert("Failed to add item");
+    }
   } catch (err) {
     console.error(err);
     alert("Error adding item");
@@ -815,12 +921,12 @@ const actionBtn = (bg: string) => ({
   transition: "0.2s"
 });
 
-const consumableItems = filteredItems.filter(item =>
-  consumablesList.includes(item.name.toLowerCase())
+const consumableItems = filteredItems.filter(
+  (item) => item.itemType?.toLowerCase() === "consumable"
 );
 
-const nonConsumableItems = filteredItems.filter(item =>
-  !consumablesList.includes(item.name.toLowerCase())
+const nonConsumableItems = filteredItems.filter(
+  (item) => item.itemType?.toLowerCase() === "non_consumable"
 );
 
 const totalItems = filteredItems.length;
@@ -1089,6 +1195,21 @@ const totalNonConsumables = nonConsumableItems.length;
         style={inputStyle}
       />
 
+      <input
+  type="file"
+  accept="image/*"
+  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setNewItem(prev => ({
+      ...prev,
+      image: file,
+    }));
+  }}
+  style={inputStyle}
+/>
+
+
+
       {/* Level */}
       <select
         value={newItem.level}
@@ -1101,6 +1222,26 @@ const totalNonConsumables = nonConsumableItems.length;
         <option value="4th Level">4th Level</option>
         <option value="Others">Others</option>
       </select>
+
+      <select
+  value={newItem.hasSerials ? "non_consumable" : "consumable"}
+  onChange={(e) => {
+    const type = e.target.value;
+
+    setNewItem((prev) => ({
+      ...prev,
+      hasSerials: type === "non_consumable",
+      hasVariants: false,
+      variants: [],
+      serials: [],
+      stock: 0,
+    }));
+  }}
+  style={inputStyle}
+>
+  <option value="consumable">Consumable</option>
+  <option value="non_consumable">Non-Consumable</option>
+</select>
 
       {/* Toggles */}
       <div style={{ margin: "15px 0", display: "flex", gap: 15 }}>
@@ -1392,6 +1533,7 @@ const totalNonConsumables = nonConsumableItems.length;
   letterSpacing: 0.5
 }}>
         <tr>
+          <th style={{ padding: 10 }}>Transaction ID</th>
           <th style={{ padding: 10 }}>Instructor</th>
           <th style={{ padding: 10 }}>Student</th>
           <th style={{ padding: 10 }}>Section</th>
@@ -1413,6 +1555,9 @@ const totalNonConsumables = nonConsumableItems.length;
         ) : (
           activeBorrows.reverse().map((b, i) => (
             <tr key={i}>
+              <td style={{ padding: 10, fontWeight: "bold", color: "#2563eb" }}>
+  {b.transactionNo || "—"}
+</td>
               <td style={{ padding: 10 }}>{b.instructorName}</td>
               <td style={{ padding: 10 }}>{b.studentName}</td>
               <td style={{ padding: 10 }}>{b.section}</td>
@@ -1590,6 +1735,7 @@ const totalNonConsumables = nonConsumableItems.length;
   letterSpacing: 0.5
 }}>
         <tr>
+          <th style={{ padding: 10 }}>Transaction ID</th>
           <th style={{ padding: 10 }}>Instructor</th>
           <th style={{ padding: 10 }}>Student</th>
           <th style={{ padding: 10 }}>Section</th>
@@ -1624,6 +1770,9 @@ const totalNonConsumables = nonConsumableItems.length;
     e.currentTarget.style.background = "white";
   }}
 >
+  <td style={{ padding: 10, fontWeight: "bold", color: "#16a34a" }}>
+  {b.transactionNo || "—"}
+</td>
               <td style={{ padding: 10 }}>{b.instructorName}</td>
               <td style={{ padding: 10 }}>{b.studentName}</td>
               <td style={{ padding: 10 }}>{b.section}</td>
@@ -1841,15 +1990,20 @@ const totalNonConsumables = nonConsumableItems.length;
             <p>{selectedReturn.incident.note || "No description provided"}</p>
           </>
         ) : (
-          /* NORMAL RETURN MODE */
-        selectedReturn.items
-          .filter((item: any) => {
-            if (!item || !item.name) return true; // keep item if invalid (avoid crash)
+ selectedReturn.items.filter((item: any) => {
+  const type = String(item.itemType || item.item_type || "")
+    .toLowerCase()
+    .trim();
 
-            return !consumables.some(c =>
-              item.name.toString().toLowerCase().includes(c.toLowerCase())
-            );
-          })
+    // ❌ hide consumables
+    if (type === "consumable") return false;
+
+    // ✅ show everything else (non-consumable)
+    return true;
+    
+  })
+
+  
           .map((item: any) => (
             <div
                 key={item.name}
@@ -2039,7 +2193,7 @@ const totalNonConsumables = nonConsumableItems.length;
 
               // Mark as returned
               const updatedHistory = borrowHistory.map(h =>
-              h.studentName === selectedReturn.studentName && h.date === selectedReturn.date
+              h.transactionNo === selectedReturn.transactionNo
                 ? {
                     ...h,
                     returned: true,
@@ -2147,25 +2301,30 @@ const totalNonConsumables = nonConsumableItems.length;
   </button>
 
     {/* Decline button */}
-  <button
-    onClick={declineBorrow}
-    style={{
-      flex: 1,
-      padding: "8px",
-      background: "#ef4444",
-      color: "white",
-      border: "none",
-      borderRadius: 6,
-      cursor: "pointer",
-      fontWeight: "bold",
-    }}
-  >
-    ❌ Decline
-  </button>
+<button
+  onClick={() => {
+    setShowDeclineModal(true);
+  }}
+  style={{
+    flex: 1,
+    padding: "8px",
+    background: "#ef4444",
+    color: "white",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+    fontWeight: "bold",
+  }}
+>
+  ❌ Decline
+</button>
 
   {/* Done button */}
   <button
-    onClick={confirmDoneBorrow}
+    onClick={() => {
+  setShowDoneConfirm(false);
+  setShowPrintConfirm(true);
+}}
     style={{
       flex: 1,
       padding: "8px",
@@ -2183,6 +2342,195 @@ const totalNonConsumables = nonConsumableItems.length;
 
 </div>
     </motion.div>
+  </div>
+)}
+
+{/* DECLINE MODAL */}
+{showDeclineModal && pendingDone && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.6)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000,
+    }}
+  >
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 16,
+        width: 380,
+        padding: 24,
+        textAlign: "center",
+      }}
+    >
+      <h3>❌ Decline Request</h3>
+
+      <p style={{ fontSize: 14, color: "#6b7280" }}>
+        Please provide a reason
+      </p>
+
+      <textarea
+        placeholder="Enter reason..."
+        value={declineReason}
+        onChange={(e) => setDeclineReason(e.target.value)}
+        style={{
+          width: "100%",
+          minHeight: 80,
+          marginTop: 10,
+          padding: 10,
+          borderRadius: 8,
+          border: "1px solid #ccc",
+        }}
+      />
+
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        <button
+          onClick={() => {
+            setShowDeclineModal(false);
+            setDeclineReason("");
+          }}
+          style={{
+            flex: 1,
+            padding: 8,
+            background: "#9ca3af",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+          }}
+        >
+          Cancel
+        </button>
+
+        <button
+          disabled={!declineReason.trim() || isProcessing}
+          onClick={() => declineBorrow(declineReason)}
+          style={{
+            flex: 1,
+            padding: 8,
+            background: "#ef4444",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+          }}
+        >
+          Submit
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showPrintConfirm && pendingDone && (
+  <div className="modalOverlay">
+    <div className="modalBox">
+
+      <h3 style={{ fontSize: 18, fontWeight: 700 }}>
+        🖨 Print Procedure Paper?
+      </h3>
+
+      <p style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>
+        Choose whether to print a procedure document before marking this request as done.
+      </p>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+
+       {/* NO */}
+<button
+  onClick={() => {
+    setShowDoneConfirm(false);
+    setPendingDone(null);
+    setShowPrintConfirm(false);
+    setShowPaperSelect(false);
+  }}
+  className="modalBtn btnGray"
+>
+  No
+</button>
+
+{/* YES */}
+<button
+  onClick={() => {
+    setShowPrintConfirm(false);
+    setShowPaperSelect(true);
+  }}
+  className="modalBtn btnBlue"
+>
+  Yes, Print
+</button>
+
+      </div>
+    </div>
+  </div>
+)}
+
+{showPaperSelect && pendingDone && (
+  <div className="modalOverlay">
+    <div className="modalBox">
+
+      <h3 style={{ fontSize: 18, fontWeight: 700 }}>
+        📄 Select Procedure Paper
+      </h3>
+
+      <select
+        value={selectedPaper}
+        onChange={(e) =>
+          setSelectedPaper(e.target.value as ProcedureType)
+        }
+        style={{
+          width: "100%",
+          padding: 12,
+          marginTop: 12,
+          borderRadius: 10,
+          border: "1px solid #d1d5db",
+          outline: "none",
+          fontSize: 14,
+        }}
+      >
+        <option value="">Select Paper</option>
+        <option value="borrow-form">Borrow Form</option>
+        <option value="equipment-checklist">Equipment Checklist</option>
+        <option value="return-report">Return Report</option>
+      </select>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+
+      {/* BACK */}
+<button
+  onClick={() => {
+    setShowPaperSelect(false);
+    setShowPrintConfirm(true);
+  }}
+  className="modalBtn btnGray"
+>
+  Back
+</button>
+
+{/* PRINT */}
+<button
+  disabled={!selectedPaper}
+  onClick={() => {
+    if (!selectedPaper) return;
+
+    handlePrintProcedure(selectedPaper);
+
+    setTimeout(() => {
+      confirmDoneBorrow();
+      setShowPaperSelect(false);
+      setPendingDone(null);
+      setSelectedPaper("");
+    }, 800);
+  }}
+  className="modalBtn btnGreen"
+>
+  Print & Done
+</button>
+
+      </div>
+    </div>
   </div>
 )}
                 
