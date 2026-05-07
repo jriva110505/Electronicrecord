@@ -5,7 +5,6 @@
         import { useRouter } from "next/navigation";
         import { BarChart,  Bar,XAxis, YAxis, Tooltip, ResponsiveContainer, } from "recharts";
         import { supabase } from "@/lib/supabase";
-        import { renderAsync } from "docx-preview";
         import "./Modal.css";
         
 
@@ -82,7 +81,7 @@ const [showConfirmModal, setShowConfirmModal] = useState(false);
 const [fileSearch, setFileSearch] = useState("");
 
 // Example files (replace with your real list)
-const files = ["cfc.pdf", "report1.pdf", "Dr tech.pdf",
+const files = ["SURGICAL SCRUBBING.pdf", "report1.pdf", "Dr tech.pdf",
 "EINC.pdf",
 "IE.pdf",
 "CATHETERIZATION.pdf",
@@ -104,60 +103,215 @@ const files = ["cfc.pdf", "report1.pdf", "Dr tech.pdf",
           const [isProcessingDecline, setIsProcessingDecline] = useState(false);
           const [showDeclineSuccess, setShowDeclineSuccess] = useState(false);
           
-const prevIdsRef = useRef<Set<string>>(new Set());
-const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
-const isInitializedRef = useRef(false);
+
+/* =========================================================
+   🔊 AUDIO REFS
+========================================================= */
+
+const chatSoundRef = useRef<HTMLAudioElement | null>(null);
+const borrowSoundRef = useRef<HTMLAudioElement | null>(null);
+
+/* =========================================================
+   💬 CHAT TRACKING
+========================================================= */
+
+const prevMessageIdsRef = useRef<Set<string>>(new Set());
+const isChatInitializedRef = useRef(false);
+
+/* =========================================================
+   📚 BORROW TRACKING
+========================================================= */
+
+const prevBorrowIdsRef = useRef<Set<string>>(new Set());
+const isBorrowInitializedRef = useRef(false);
+
+/* =========================================================
+   🔊 LOAD AUDIO FILES
+========================================================= */
 
 useEffect(() => {
-  notificationSoundRef.current = new Audio("/sound/notifyBorrow.mp3");
-  notificationSoundRef.current.load();
-  notificationSoundRef.current.volume = 1;
+  // 💬 chat sound
+  chatSoundRef.current = new Audio("/sound/chatNotify.mp3");
+  chatSoundRef.current.preload = "auto";
+  chatSoundRef.current.volume = 1;
+
+  // 📚 borrow sound
+  borrowSoundRef.current = new Audio("/sound/notifyBorrow.mp3");
+  borrowSoundRef.current.preload = "auto";
+  borrowSoundRef.current.volume = 1;
+
+  console.log("🔊 Sounds loaded");
 }, []);
 
-const playNotificationSound = async () => {
-  const audio = notificationSoundRef.current;
-  if (!audio) {
-    console.log("❌ No audio loaded");
+/* =========================================================
+   🔓 UNLOCK AUDIO (IMPORTANT)
+   Browser blocks autoplay until first user interaction
+========================================================= */
+
+useEffect(() => {
+  const unlockAudio = async () => {
+    try {
+      // 💬 unlock chat audio
+      if (chatSoundRef.current) {
+        await chatSoundRef.current.play();
+        chatSoundRef.current.pause();
+        chatSoundRef.current.currentTime = 0;
+      }
+
+      // 📚 unlock borrow audio
+      if (borrowSoundRef.current) {
+        await borrowSoundRef.current.play();
+        borrowSoundRef.current.pause();
+        borrowSoundRef.current.currentTime = 0;
+      }
+
+      console.log("🔓 Audio unlocked");
+    } catch (err) {
+      console.log("❌ Audio unlock failed:", err);
+    }
+
+    document.removeEventListener("click", unlockAudio);
+  };
+
+  document.addEventListener("click", unlockAudio);
+
+  return () => {
+    document.removeEventListener("click", unlockAudio);
+  };
+}, []);
+
+/* =========================================================
+   🔊 PLAY CHAT SOUND
+========================================================= */
+
+const playChatSound = async () => {
+  try {
+    const audio = chatSoundRef.current;
+
+    if (!audio) {
+      console.log("❌ Chat audio missing");
+      return;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      await playPromise;
+    }
+
+    console.log("💬 Chat sound played");
+  } catch (err) {
+    console.log("❌ Chat sound failed:", err);
+  }
+};
+
+/* =========================================================
+   🔊 PLAY BORROW SOUND
+========================================================= */
+
+const playBorrowSound = async () => {
+  try {
+    const audio = borrowSoundRef.current;
+
+    if (!audio) {
+      console.log("❌ Borrow audio missing");
+      return;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      await playPromise;
+    }
+
+    console.log("📚 Borrow sound played");
+  } catch (err) {
+    console.log("❌ Borrow sound failed:", err);
+  }
+};
+
+/* =========================================================
+   💬 CHAT NOTIFICATION EFFECT
+========================================================= */
+
+useEffect(() => {
+  if (!conversations) return;
+
+  const currentMessageIds = new Set(
+    conversations.flatMap((c: any) =>
+      (c.messages || [])
+        .filter(
+          (m: any) =>
+            m.sender === "user" &&
+            c.studentId !== selectedChat?.studentId
+        )
+        .map(
+          (m: any) =>
+            m.id || `${c.studentId}-${m.createdAt}-${m.text}`
+        )
+    )
+  );
+
+  // 🟡 first load = baseline only
+  if (!isChatInitializedRef.current) {
+    prevMessageIdsRef.current = currentMessageIds;
+    isChatInitializedRef.current = true;
     return;
   }
 
-  try {
-    audio.currentTime = 0;
-    await audio.play();
-    console.log("🔊 Sound played");
-  } catch (err) {
-    console.log("❌ Audio blocked or failed:", err);
+  const prev = prevMessageIdsRef.current;
+
+  const newMessages = [...currentMessageIds].filter(
+    (id) => !prev.has(id)
+  );
+
+  if (newMessages.length > 0) {
+    console.log("💬 NEW CHAT MESSAGE");
+    playChatSound();
   }
-};
+
+  prevMessageIdsRef.current = currentMessageIds;
+}, [conversations, selectedChat]);
+
+/* =========================================================
+   📚 BORROW NOTIFICATION EFFECT
+========================================================= */
 
 useEffect(() => {
   if (!borrowHistory) return;
 
-  const currentIds = new Set(
+  const currentBorrowIds = new Set(
     borrowHistory
-      .filter((b: any) => !b.returned && !b.done) // 🔥 ignore internal updates
+      .filter((b: any) => !b.returned && !b.done)
       .map((b: any) => b.transactionNo)
   );
 
-  // 🟡 FIRST LOAD = baseline only (NO SOUND)
-  if (!isInitializedRef.current) {
-    prevIdsRef.current = currentIds;
-    isInitializedRef.current = true;
+  // 🟡 first load = baseline only
+  if (!isBorrowInitializedRef.current) {
+    prevBorrowIdsRef.current = currentBorrowIds;
+    isBorrowInitializedRef.current = true;
     return;
   }
 
-  const prev = prevIdsRef.current;
+  const prev = prevBorrowIdsRef.current;
 
-  const newItems = [...currentIds].filter((id) => !prev.has(id));
+  const newBorrows = [...currentBorrowIds].filter(
+    (id) => !prev.has(id)
+  );
 
-  if (newItems.length > 0) {
-    const audio = notificationSoundRef.current;
-    audio?.play().catch(() => {});
+  if (newBorrows.length > 0) {
+    console.log("📚 NEW BORROW REQUEST");
+    playBorrowSound();
   }
 
-  prevIdsRef.current = currentIds;
+  prevBorrowIdsRef.current = currentBorrowIds;
 }, [borrowHistory]);
-
 
 
           useEffect(() => {
@@ -3422,8 +3576,8 @@ onClick={() => {
           marginBottom: 20
         }}>
           {[
-            { label: "Total Borrows", value: totalStats.total, color: "#22c55e" },
-            { label: "Returned", value: totalStats.returned, color: "#3b82f6" },
+            { label: "Total Borrows", value: totalStats.total, color: "#ffffff" },
+            { label: "Returned", value: totalStats.returned, color: "#22c55e" },
             { label: "Issues", value: totalStats.issue, color: "#f59e0b" },
             { label: "Missing", value: totalStats.missing, color: "#ef4444" },
           ].map((card, i) => (
