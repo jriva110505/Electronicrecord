@@ -5,6 +5,7 @@
         import { useRouter } from "next/navigation";
         import { BarChart,  Bar,XAxis, YAxis, Tooltip, ResponsiveContainer, } from "recharts";
         import { supabase } from "@/lib/supabase";
+        import { renderAsync } from "docx-preview";
         import "./Modal.css";
         
 
@@ -64,6 +65,7 @@
           const [remarks, setRemarks] = useState("complete");
           const [showDoneConfirm, setShowDoneConfirm] = useState(false);
           const [pendingDone, setPendingDone] = useState<any | null>(null);
+
           //messages
           const [conversations, setConversations] = useState<Conversation[]>([]);
           const [isSendingReply, setIsSendingReply] = useState(false);
@@ -74,53 +76,96 @@
 
           const [currentUser, setCurrentUser] = useState("");
 
-       const [showDeclineModal, setShowDeclineModal] = useState(false);
-const [declineReason, setDeclineReason] = useState("");
-const [isProcessing, setIsProcessing] = useState(false);
+const [selectedFile, setSelectedFile] = useState<string | null>(null);
+const [showFileModal, setShowFileModal] = useState(false);
+const [showConfirmModal, setShowConfirmModal] = useState(false);
+const [fileSearch, setFileSearch] = useState("");
 
-const [showSuccessModal, setShowSuccessModal] = useState(false);
-const [successMessage, setSuccessMessage] = useState("");
-const [successType, setSuccessType] = useState<"success" | "error">("success");
+// Example files (replace with your real list)
+const files = ["cfc.pdf", "report1.pdf", "Dr tech.pdf",
+"EINC.pdf",
+"IE.pdf",
+"CATHETERIZATION.pdf",
+"NEWBORN CARE.pdf",
+"PERINEAL FLUSHING.pdf",
+"LEOPOLDS MANEUVER.pdf",
+"BAG TECHNIQUE.pdf"
+];
 
-const [showPrintConfirm, setShowPrintConfirm] = useState(false);
-const [selectedPaper, setSelectedPaper] =
-  useState<ProcedureType | "">("");
-const [showPaperSelect, setShowPaperSelect] = useState(false);
 
-type ProcedureType = "borrow-form" | "equipment-checklist" | "return-report";
+          //loaidng Modals
+          const [showDeclineModal, setShowDeclineModal] = useState(false);
+          const [declineReason, setDeclineReason] = useState("");
+          const [isProcessing, setIsProcessing] = useState(false);
+          const [isProcessingDone, setIsProcessingDone] = useState(false);
+          const [showSuccessModal, setShowSuccessModal] = useState(false);
+          const [successMessage, setSuccessMessage] = useState("");
+          const [successType, setSuccessType] = useState<"success" | "error">("success");
+          const [isProcessingDecline, setIsProcessingDecline] = useState(false);
+          const [showDeclineSuccess, setShowDeclineSuccess] = useState(false);
+          
+const prevIdsRef = useRef<Set<string>>(new Set());
+const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
+const isInitializedRef = useRef(false);
 
-const procedureFiles: Record<string, string> = {
-  "borrow-form": "/procedures/borrow-form.pdf",
-  "equipment-checklist": "/procedures/equipment-checklist.pdf",
-  "return-report": "/procedures/return-report.pdf",
+useEffect(() => {
+  notificationSoundRef.current = new Audio("/sound/notifyBorrow.mp3");
+  notificationSoundRef.current.load();
+  notificationSoundRef.current.volume = 1;
+}, []);
+
+const playNotificationSound = async () => {
+  const audio = notificationSoundRef.current;
+  if (!audio) {
+    console.log("❌ No audio loaded");
+    return;
+  }
+
+  try {
+    audio.currentTime = 0;
+    await audio.play();
+    console.log("🔊 Sound played");
+  } catch (err) {
+    console.log("❌ Audio blocked or failed:", err);
+  }
 };
-  
+
+useEffect(() => {
+  if (!borrowHistory) return;
+
+  const currentIds = new Set(
+    borrowHistory
+      .filter((b: any) => !b.returned && !b.done) // 🔥 ignore internal updates
+      .map((b: any) => b.transactionNo)
+  );
+
+  // 🟡 FIRST LOAD = baseline only (NO SOUND)
+  if (!isInitializedRef.current) {
+    prevIdsRef.current = currentIds;
+    isInitializedRef.current = true;
+    return;
+  }
+
+  const prev = prevIdsRef.current;
+
+  const newItems = [...currentIds].filter((id) => !prev.has(id));
+
+  if (newItems.length > 0) {
+    const audio = notificationSoundRef.current;
+    audio?.play().catch(() => {});
+  }
+
+  prevIdsRef.current = currentIds;
+}, [borrowHistory]);
+
+
+
           useEffect(() => {
   const user = localStorage.getItem("currentUser");
   if (user) {
     setCurrentUser(user);
   }
 }, []);
-
-const handlePrintProcedure = (type: ProcedureType) => {
-  const fileUrl = procedureFiles[type];
-  if (!fileUrl) return;
-
-  const iframe = document.createElement("iframe");
-  iframe.style.display = "none";
-  iframe.src = fileUrl;
-
-  document.body.appendChild(iframe);
-
-  iframe.onload = () => {
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-
-    setTimeout(() => {
-      iframe.remove();
-    }, 1000);
-  };
-};
 
 // Pictures
 
@@ -140,6 +185,21 @@ const uploadImage = async (file: File) => {
   return data.publicUrl;
 };
 
+// File modal
+
+const handlePrint = (file: string) => {
+  const win = window.open(`/procedures/${file}`, "_blank");
+
+  if (!win) {
+    alert("Popup blocked. Please allow popups.");
+    return;
+  }
+
+  win.onload = () => {
+    win.focus();
+    win.print();
+  };
+};
 
 // messages load
 
@@ -500,21 +560,26 @@ const formatTime12 = (time24: string) => {
 
 
     // Reload borrow history from localStorage
+const prevRawRef = useRef<string>("");
+
 const reloadBorrowHistory = () => {
-  if (typeof window !== "undefined") {
-    const storedHistory = JSON.parse(localStorage.getItem("borrowHistory") || "[]");
-    setBorrowHistory(storedHistory);
-  }
+  if (typeof window === "undefined") return;
+
+  const stored = localStorage.getItem("borrowHistory") || "[]";
+
+  const parsed = JSON.parse(stored);
+
+  setBorrowHistory(parsed);
 };
 
 useEffect(() => {
-  reloadBorrowHistory(); // load initially
+  reloadBorrowHistory();
 
   const interval = setInterval(() => {
-    reloadBorrowHistory(); // refresh every 5 seconds
+    reloadBorrowHistory();
   }, 3000);
 
-  return () => clearInterval(interval); // cleanup on unmount
+  return () => clearInterval(interval);
 }, []);
 
 const declineBorrow = async (reason: string) => {
@@ -1114,7 +1179,6 @@ const totalNonConsumables = nonConsumableItems.length;
   </div>
 );
 
-
           return (
             <div style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
               {/* Sidebar */}
@@ -1410,11 +1474,12 @@ const totalNonConsumables = nonConsumableItems.length;
       gap: 10
     }}>
       <h2 style={{
-  fontSize: 28,
+  fontSize: 22,
   fontWeight: "bold",
   color: "#111827",
   marginBottom: 20
 }}>
+
   Supplies 
   <span style={{
         fontSize: 12,
@@ -1469,15 +1534,38 @@ const totalNonConsumables = nonConsumableItems.length;
 {page === "history" && (
   <>
   <div id="print-area">
-<div style={{
-  marginTop: 5,
-  borderRadius: 16,
-  overflow: "hidden",
-  background: "#fffefe",
-  padding: 10
-}}>
-  
-  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+<div
+  style={{
+    marginTop: 5,
+    borderRadius: 16,
+    background: "#fffefe",
+    padding: 10
+  }}
+>
+
+  {/* ROW 1: BUTTONS ONLY */}
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }}
+  >
+    <button
+      onClick={() => setShowFileModal(true)}
+      style={{
+        padding: "8px 14px",
+        background: "#10b981",
+        color: "white",
+        border: "none",
+        borderRadius: 6,
+        fontWeight: "bold",
+        cursor: "pointer"
+      }}
+    >
+      📄 Print a Procedure File
+    </button>
+
     <button
       onClick={() => window.print()}
       style={{
@@ -1490,30 +1578,39 @@ const totalNonConsumables = nonConsumableItems.length;
         cursor: "pointer"
       }}
     >
-      🖨 Print
+      🖨 Print All
     </button>
   </div>
+
+  {/* ROW 2: TITLE ONLY */}
+  <div style={{ marginTop: 10 }}>
+    <h3
+      style={{
+        margin: 0,
+        fontSize: 22,
+        fontWeight: 700,
+        color: "#111827",
+        display: "flex",
+        alignItems: "center",
+        gap: 8
+      }}
+    >
+      🟡 Active Borrowed
+      <span
+        style={{
+          fontSize: 12,
+          background: "#fef3c7",
+          color: "#92400e",
+          padding: "3px 10px",
+          borderRadius: 999
+        }}
+      >
+        {activeBorrows.length} Active
+      </span>
+    </h3>
+  </div>
+
 </div>
-    <h3 style={{
-  marginTop: 5,
-  fontSize: 22,
-  fontWeight: 700,
-  color: "#111827",
-  display: "flex",
-  alignItems: "center",
-  gap: 8
-}}>
-  🟡 Active Borrowed
-  <span style={{
-    fontSize: 13, 
-    background: "#fef3c7",
-    color: "#92400e",
-    padding: "3px 10px",
-    borderRadius: 999
-  }}>
-    {activeBorrows.length} Active
-  </span>
-</h3>
 
     <table style={{
       width: "100%",
@@ -2321,9 +2418,25 @@ const totalNonConsumables = nonConsumableItems.length;
 
   {/* Done button */}
   <button
-    onClick={() => {
+ onClick={async () => {
   setShowDoneConfirm(false);
-  setShowPrintConfirm(true);
+  setIsProcessingDone(true);
+
+  try {
+    // ✅ mark as done
+    await confirmDoneBorrow();
+
+    
+    await markAsDone(pendingDone);
+
+    setIsProcessingDone(false);
+    setShowSuccessModal(true);
+    setPendingDone(null);
+
+  } catch (err) {
+    setIsProcessingDone(false);
+    alert("Something went wrong.");
+  }
 }}
     style={{
       flex: 1,
@@ -2407,7 +2520,26 @@ const totalNonConsumables = nonConsumableItems.length;
 
         <button
           disabled={!declineReason.trim() || isProcessing}
-          onClick={() => declineBorrow(declineReason)}
+         onClick={async () => {
+  if (!declineReason.trim()) return;
+
+  setIsProcessingDecline(true);
+
+  try {
+    await declineBorrow(declineReason);
+
+    setShowDeclineModal(false);
+    setDeclineReason("");
+
+    setShowDeclineSuccess(true);
+
+  } catch (err) {
+    console.error(err);
+    alert("Failed to decline request");
+  } finally {
+    setIsProcessingDecline(false);
+  }
+}}
           style={{
             flex: 1,
             padding: 8,
@@ -2424,123 +2556,432 @@ const totalNonConsumables = nonConsumableItems.length;
   </div>
 )}
 
-{showPrintConfirm && pendingDone && (
-  <div className="modalOverlay">
-    <div className="modalBox">
+{isProcessingDone && (
+  <div style={{
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+    backdropFilter: "blur(4px)"
+  }}>
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+      style={{
+        background: "#fff",
+        padding: 30,
+        borderRadius: 16,
+        textAlign: "center",
+        width: 300,
+        boxShadow: "0 20px 40px rgba(0,0,0,0.2)"
+      }}
+    >
+      
+      {/* 🔄 Spinner */}
+      <div style={{
+        width: 50,
+        height: 50,
+        border: "5px solid #e5e7eb",
+        borderTop: "5px solid #22c55e",
+        borderRadius: "50%",
+        margin: "0 auto",
+        animation: "spin 1s linear infinite"
+      }} />
 
-      <h3 style={{ fontSize: 18, fontWeight: 700 }}>
-        🖨 Print Procedure Paper?
-      </h3>
+      <h3 style={{ marginTop: 16 }}>Processing...</h3>
 
-      <p style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>
-        Choose whether to print a procedure document before marking this request as done.
+      <p style={{ fontSize: 13, color: "#6b7280" }}>
+        Saving transaction and sending receipt
       </p>
-
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-
-       {/* NO */}
-<button
-  onClick={() => {
-    setShowDoneConfirm(false);
-    setPendingDone(null);
-    setShowPrintConfirm(false);
-    setShowPaperSelect(false);
-  }}
-  className="modalBtn btnGray"
->
-  No
-</button>
-
-{/* YES */}
-<button
-  onClick={() => {
-    setShowPrintConfirm(false);
-    setShowPaperSelect(true);
-  }}
-  className="modalBtn btnBlue"
->
-  Yes, Print
-</button>
-
-      </div>
-    </div>
+    </motion.div>
   </div>
 )}
 
-{showPaperSelect && pendingDone && (
-  <div className="modalOverlay">
-    <div className="modalBox">
+{showSuccessModal && (
+  <div style={{
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+    backdropFilter: "blur(4px)"
+  }}>
+    <motion.div
+      initial={{ scale: 0.7, opacity: 0, y: 40 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 250, damping: 18 }}
+      style={{
+        background: "#fff",
+        padding: 30,
+        borderRadius: 16,
+        textAlign: "center",
+        width: 320,
+        boxShadow: "0 20px 40px rgba(0,0,0,0.2)"
+      }}
+    >
+      {/* ✅ Animated check */}
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.2, type: "spring", stiffness: 300 }}
+        style={{ fontSize: 50 }}
+      >
+        ✅
+      </motion.div>
 
-      <h3 style={{ fontSize: 18, fontWeight: 700 }}>
-        📄 Select Procedure Paper
+      <h3 style={{ marginTop: 10 }}>Success!</h3>
+
+      <p style={{ fontSize: 14, color: "#6b7280", marginTop: 8 }}>
+        Transaction completed and receipt sent to email.
+      </p>
+
+      <button
+        onClick={() => setShowSuccessModal(false)}
+        style={{
+          marginTop: 20,
+          padding: "8px 16px",
+          background: "#22c55e",
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          fontWeight: "bold",
+          cursor: "pointer"
+        }}
+      >
+        OK
+      </button>
+    </motion.div>
+  </div>
+)}
+
+{isProcessingDecline && (
+  <div style={{
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 3000,
+    backdropFilter: "blur(4px)"
+  }}>
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      style={{
+        background: "#fff",
+        padding: 30,
+        borderRadius: 16,
+        textAlign: "center",
+        width: 300
+      }}
+    >
+      <div style={{
+        width: 50,
+        height: 50,
+        border: "5px solid #e5e7eb",
+        borderTop: "5px solid #ef4444",
+        borderRadius: "50%",
+        margin: "0 auto",
+        animation: "spin 1s linear infinite"
+      }} />
+
+      <h3 style={{ marginTop: 16 }}>Processing Decline...</h3>
+
+      <p style={{ fontSize: 13, color: "#6b7280" }}>
+        Sending decline notice to email
+      </p>
+    </motion.div>
+  </div>
+)}
+
+{showDeclineSuccess && (
+  <div style={{
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 3000,
+    backdropFilter: "blur(4px)"
+  }}>
+    <motion.div
+      initial={{ scale: 0.7, opacity: 0, y: 40 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      style={{
+        background: "#fff",
+        padding: 30,
+        borderRadius: 16,
+        textAlign: "center",
+        width: 320
+      }}
+    >
+      <div style={{ fontSize: 50 }}>❌</div>
+
+      <h3 style={{ marginTop: 10 }}>Request Declined</h3>
+
+      <p style={{ fontSize: 14, color: "#6b7280", marginTop: 8 }}>
+        The request was declined and notification was sent to email.
+      </p>
+
+      <button
+        onClick={() => setShowDeclineSuccess(false)}
+        style={{
+          marginTop: 20,
+          padding: "8px 16px",
+          background: "#ef4444",
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          fontWeight: "bold",
+          cursor: "pointer"
+        }}
+      >
+        OK
+      </button>
+    </motion.div>
+  </div>
+)}
+
+{showFileModal && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(17, 24, 39, 0.6)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9999
+    }}
+  >
+    <div
+      style={{
+        width: 420,
+        height: 500,
+        background: "#fff",
+        borderRadius: 14,
+        padding: 20,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+        display: "flex",
+        flexDirection: "column"
+      }}
+    >
+      {/* HEADER */}
+      <h3 style={{ marginBottom: 12, fontSize: 18, fontWeight: 700 }}>
+        📄 Select Procedure to Print
       </h3>
 
-      <select
-        value={selectedPaper}
-        onChange={(e) =>
-          setSelectedPaper(e.target.value as ProcedureType)
-        }
+      {/* SEARCH */}
+      <input
+        type="text"
+        placeholder="Search procedure..."
+        value={fileSearch}
+        onChange={(e) => setFileSearch(e.target.value)}
         style={{
           width: "100%",
-          padding: 12,
-          marginTop: 12,
+          padding: "10px 12px",
           borderRadius: 10,
           border: "1px solid #d1d5db",
           outline: "none",
           fontSize: 14,
+          marginBottom: 12
+        }}
+      />
+
+      {/* FILE LIST (scrollable) */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          paddingRight: 4
         }}
       >
-        <option value="">Select Paper</option>
-        <option value="borrow-form">Borrow Form</option>
-        <option value="equipment-checklist">Equipment Checklist</option>
-        <option value="return-report">Return Report</option>
-      </select>
+        {files
+          .filter((file) =>
+            file.toLowerCase().includes(fileSearch.toLowerCase())
+          )
+          .map((file, i) => (
+            <div
+              key={i}
+              onClick={() => {
+                setSelectedFile(file);
+                setShowFileModal(false);
+                setShowConfirmModal(true);
+              }}
+              style={{
+                padding: 12,
+                marginBottom: 8,
+                border: "1px solid #e5e7eb",
+                borderRadius: 10,
+                cursor: "pointer",
+                background: "#f9fafb",
+                fontSize: 14,
+                transition: "0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#eef2ff";
+                e.currentTarget.style.borderColor = "#c7d2fe";
+                e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#f9fafb";
+                e.currentTarget.style.borderColor = "#e5e7eb";
+                e.currentTarget.style.transform = "translateY(0px)";
+              }}
+            >
+              📄 {file}
+            </div>
+          ))}
 
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        {/* EMPTY STATE */}
+        {files.filter((file) =>
+          file.toLowerCase().includes(fileSearch.toLowerCase())
+        ).length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              color: "#6b7280",
+              fontSize: 13,
+              marginTop: 20
+            }}
+          >
+            No files found
+          </div>
+        )}
+      </div>
 
-      {/* BACK */}
-<button
-  onClick={() => {
-    setShowPaperSelect(false);
-    setShowPrintConfirm(true);
-  }}
-  className="modalBtn btnGray"
->
-  Back
-</button>
-
-{/* PRINT */}
-<button
-  disabled={!selectedPaper}
-  onClick={() => {
-    if (!selectedPaper) return;
-
-    handlePrintProcedure(selectedPaper);
-
-    setTimeout(() => {
-      confirmDoneBorrow();
-      setShowPaperSelect(false);
-      setPendingDone(null);
-      setSelectedPaper("");
-    }, 800);
-  }}
-  className="modalBtn btnGreen"
->
-  Print & Done
-</button>
-
+      {/* FOOTER */}
+      <div
+        style={{
+          marginTop: 10,
+          display: "flex",
+          justifyContent: "flex-end"
+        }}
+      >
+        <button
+          onClick={() => setShowFileModal(false)}
+          style={{
+            padding: "8px 14px",
+            background: "#6b7280",
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer",
+            fontWeight: 600
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "#4b5563")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "#6b7280")
+          }
+        >
+          Close
+        </button>
       </div>
     </div>
   </div>
 )}
-                
+
+{showConfirmModal && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(17, 24, 39, 0.6)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9999
+    }}
+  >
+    <div
+      style={{
+        background: "#fff",
+        width: 380,
+        maxWidth: "92%",
+        borderRadius: 14,
+        padding: 20,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.25)"
+      }}
+    >
+      <h3 style={{ marginBottom: 10 }}>Confirm Print</h3>
+
+      <p style={{ fontSize: 14, color: "#374151" }}>
+        Are you sure you want to print:
+        <br />
+        <b>{selectedFile}</b>?
+      </p>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
+        <button
+onClick={() => {
+   if (selectedFile) {
+    handlePrint(selectedFile);
+  }
+  setShowConfirmModal(false);
+}}
+          style={{
+            padding: "8px 14px",
+            background: "#2bcf1f",
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer"
+          }}
+        >
+          Yes, Print
+        </button>
+
+        <button
+          onClick={() => {
+            setShowConfirmModal(false);
+            setSelectedFile(null);
+          }}
+          style={{
+            padding: "8px 14px",
+            background: "#e5e7eb",
+            color: "#111827",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer"
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
  
 {page === "rooms" && (
   <>
   <div id="print-area">
     <div style={{ marginTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-       <button
+<div style={{
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 15
+}}>
+  
+  <h2 style={{
+  fontSize: 22,
+  fontWeight: "bold",
+  color: "#111827",
+  marginBottom: 20}}>
+    Room Bookings
+  </h2>
+
+  <button
     onClick={() => window.print()}
     style={{
       padding: "8px 14px",
@@ -2552,10 +2993,10 @@ const totalNonConsumables = nonConsumableItems.length;
       cursor: "pointer"
     }}
   >
-     🖨 Print
+    🖨 Print
   </button>
-  </div>
-  <h2 style={{ marginBottom: 15 }}>Room Bookings</h2>
+
+</div>
 
   <div
     style={{
@@ -2643,7 +3084,7 @@ const totalNonConsumables = nonConsumableItems.length;
               <td style={tdCenter}>{b.date}</td>
 
               <td style={tdCenter}>
-                {b.start} - {b.end}
+                {formatTime12(b.start)} - {formatTime12(b.end)}
               </td>
 
               <td style={tdCenter}>{b.studentName}</td>
@@ -2691,9 +3132,15 @@ const totalNonConsumables = nonConsumableItems.length;
   </>
 )}  
 
+
+
 {page === "messages" && (
   <>
-    <h6 style={{ marginBottom: 10 }}>Chats History</h6>
+    <h6 style={{
+  fontSize: 22,
+  fontWeight: "bold",
+  color: "#111827",
+  marginBottom: 20}}>Chats History</h6>
     <div style={{ display: "flex", height: "75vh", gap: 12 }}>
 
       {/* 🔵 LEFT: CHAT LIST */}

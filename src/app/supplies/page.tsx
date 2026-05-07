@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import "./responsive.css";
@@ -27,9 +27,8 @@ export default function SuppliesPage() {
     const [selectedRoom, setSelectedRoom] = useState<string | null>(null);  
     const [roomBookings, setRoomBookings] = useState<any[]>([]);
     const [showRoomModal, setShowRoomModal] = useState(false);
-    const [availabilityMsg, setAvailabilityMsg] = useState<string | null>(null);
-    const [startTime, setStartTime] = useState("");
-    const [endTime, setEndTime] = useState("");
+    const [inputStart, setInputStart] = useState("");
+const [inputEnd, setInputEnd] = useState("");
 
     const [showSemesterModal, setShowSemesterModal] = useState(false);
     const [selectedSemester, setSelectedSemester] = useState("");
@@ -42,6 +41,9 @@ export default function SuppliesPage() {
     const [showVariantModal, setShowVariantModal] = useState(false);
     const [selectedItemForVariant, setSelectedItemForVariant] = useState<Item | null>(null);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const [hoveredRoom, setHoveredRoom] = useState<string | null>(null);
 
   // Receipt modal
   const [showReceipt, setShowReceipt] = useState(false);
@@ -787,14 +789,44 @@ const generateTransactionId = (borrowId: string, time: string) => {
   return txn;
 };
 
-const timeSlots = [];
-for (let hour = 7; hour < 23; hour++) {
-  const start = `${String(hour).padStart(2, "0")}:00`;
-  const end = `${String(hour + 1).padStart(2, "0")}:00`;
+const isTimeAvailable = (start: any, end: any) => {
+  const selectedStart = new Date(`${selectedDate}T${start}`);
+  const selectedEnd = new Date(`${selectedDate}T${end}`);
 
-  timeSlots.push({ start, end });
-}
+  return !roomBookings.some((b) => {
+    if (b.room !== selectedRoom || b.date !== selectedDate) return false;
+    if (b.done) return false;
 
+    const bStart = new Date(`${b.date}T${b.start}`);
+    const bEnd = new Date(`${b.date}T${b.end}`);
+
+    // overlap check
+    return selectedStart < bEnd && selectedEnd > bStart;
+  });
+};
+
+const getRoomSchedule = (roomName: any) => {
+  return roomBookings
+    .filter((b) => b.room === roomName && !b.done)
+    .sort((a, b) => a.start.localeCompare(b.start));
+};
+
+const getRoomStatus = (roomName: string) => {
+  const now = new Date();
+
+  const activeBooking = roomBookings.find((b) => {
+    if (b.room !== roomName) return false;
+    if (b.done) return false;
+
+    const start = new Date(`${b.date}T${b.start}`);
+    const end = new Date(`${b.date}T${b.end}`);
+
+    // 🔥 KEY LOGIC: check if NOW is inside booking range
+    return now >= start && now < end;
+  });
+
+  return activeBooking ? "booked" : "available";
+};
   // Date: 2024-06-01
   const formatDate = (date: Date) => {
     const year = date.getFullYear();
@@ -1339,124 +1371,84 @@ if (selectedLevel === "Rooms") {
   color: "#166534",
   textAlign: "center"
 }}>
-  🟢 Available &nbsp;&nbsp; 🔴 Booked &nbsp;&nbsp; 🔵 Selected
+  🟢 Available &nbsp;&nbsp; 🔴 Booked &nbsp;&nbsp;
 </div>
 
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 8,
-    marginTop: 10,
-  }}
->
-  {timeSlots.map((slot, index) => {
-   const now = new Date();
+<div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
 
-  const booking = roomBookings.find((b) => {
-    if (b.room !== selectedRoom || b.date !== selectedDate) return false;
+  <label>Start Time</label>
+  <input
+  type="time"
+  value={inputStart}
+  onChange={(e) => setInputStart(e.target.value)}
+  style={{ padding: 8, borderRadius: 8 }}
+/>
 
-    // IMPORTANT: ignore completed bookings
-    if (b.done) return false;
+<label>End Time</label>
+<input
+  type="time"
+  value={inputEnd}
+  onChange={(e) => setInputEnd(e.target.value)}
+  style={{ padding: 8, borderRadius: 8 }}
+/>
 
-    const bookingStart = new Date(`${b.date}T${b.start}`);
-    const bookingEnd = new Date(`${b.date}T${b.end}`);
-    const slotStart = new Date(`${selectedDate}T${slot.start}`);
-    const slotEnd = new Date(`${selectedDate}T${slot.end}`);
-
-    if (bookingEnd <= now) return false;
-
-    return slotStart < bookingEnd && slotEnd > bookingStart;
-  });
-
-  const available = !booking;
-
-  const isSelected =
-    startTime === slot.start && endTime === slot.end;
-
-    return (
-      <div
-        key={index}
-        title={booking ? "🔴 Room not available" : "🟢 Available"}
-        
-        onClick={() => {
-          if (!available) return;
-
-          setStartTime(slot.start);
-          setEndTime(slot.end);
-        }}
-        style={{
-          padding: "8px 6px",
-          borderRadius: 8,
-          textAlign: "center",
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: available ? "pointer" : "not-allowed",
-          background: isSelected
-            ? "#2563eb"
-            : available
-            ? "#22c55e"
-            : "#ef4444",
-          color: "white",
-        }}
-      >
-        {formatTime12(slot.start)} - {formatTime12(slot.end)}
-
-        
-      </div>
-    );
-  })}
 </div>
 
     {/* ACTION BUTTONS */}
 <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
   <button
-    onClick={() => {
-      if (!startTime || !endTime) {
-        alert("Please select a time slot");
-        return;
-      }
+ onClick={() => {
+  if (!inputStart || !inputEnd) {
+    alert("Please select start and end time");
+    return;
+  }
 
-      if (startTime >= endTime) {
-        alert("End time must be after start time");
-        return;
-      }
+  if (inputStart >= inputEnd) {
+    alert("End time must be after start time");
+    return;
+  }
 
-      const newBooking = {
-        id: Date.now(),
-        room: selectedRoom,
-        course: section || "N/A",
-        date: selectedDate,
-        start: startTime,
-        end: endTime,
-        studentName: studentName,
-        instructorName: instructorName,
-        section: section,
-        done: false,
-      };
+  const now = new Date();
+  const selectedStart = new Date(`${selectedDate}T${inputStart}`);
 
-const selectedStart = new Date(`${selectedDate}T${startTime}`);
-const selectedEnd = new Date(`${selectedDate}T${endTime}`);
-const now = new Date();
+  const isToday = selectedDate === formatDate(new Date());
 
-// Only block if booking is TODAY AND time is past
-const isToday = selectedDate === formatDate(new Date());
+  if (isToday && selectedStart < now) {
+    alert("⛔ Cannot select past time");
+    return;
+  }
 
-if (isToday && selectedStart < now) {
-  alert("⛔ Cannot select past time");
-  return;
-}
+  // CHECK AVAILABILITY FUNCTION (important)
+  const available = isTimeAvailable(inputStart, inputEnd);
 
-      const updated = [...roomBookings, newBooking];
-      setRoomBookings(updated);
-      localStorage.setItem("roomBookings", JSON.stringify(updated));
+  if (!available) {
+    alert("🔴 Time is already booked");
+    return;
+  }
 
-      alert("✅ Room booked successfully!");
+  const newBooking = {
+    id: Date.now(),
+    room: selectedRoom,
+    date: selectedDate,
+    start: inputStart,
+    end: inputEnd,
+    studentName,
+    instructorName,
+    section,
+    done: false,
+  };
 
-      setStartTime("");
-      setEndTime("");
-      setShowRoomModal(false);
-    }}
+  const updated = [...roomBookings, newBooking];
+  setRoomBookings(updated);
+  localStorage.setItem("roomBookings", JSON.stringify(updated));
+
+  alert("✅ Room booked successfully!");
+
+  setInputStart("");
+  setInputEnd("");
+  setShowRoomModal(false);
+}}
+
     style={{
       flex: 1,
       padding: 10,
@@ -1505,25 +1497,98 @@ if (isToday && selectedStart < now) {
           }}
         >
           {roomsData.map((room) => (
-            <div
-              key={room.name}
-              style={{
-                background: "#fff",
-                padding: 20,
-                borderRadius: 16,
-                boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-                cursor: "pointer",
-                textAlign: "center",
-              }}
-              onClick={() => {
-                setSelectedRoom(room.name);
-                setShowRoomModal(true);
-              }}
-            >
-              <h4>{room.name}</h4>
-              <span style={{ color: "#16a34a" }}> Choose your Preferred Time</span>
-            </div>
-          ))}
+<div
+  key={room.name}
+  style={{
+    background: "#fff",
+    padding: 20,
+    borderRadius: 16,
+    boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+    cursor: "pointer",
+    textAlign: "center",
+    position: "relative",
+  }}
+  onMouseEnter={() => {
+  hoverTimeout.current = setTimeout(() => {
+    setHoveredRoom(room.name);
+  }, 1000);
+}}
+
+onMouseLeave={() => {
+  if (hoverTimeout.current) {
+    clearTimeout(hoverTimeout.current);
+    hoverTimeout.current = null;
+  }
+
+  setHoveredRoom(null);
+}}
+  onClick={() => {
+    setSelectedRoom(room.name);
+    setInputStart("");
+    setInputEnd("");
+    setShowRoomModal(true);
+  }}
+>
+  {hoveredRoom === room.name && (
+  <div
+    style={{
+      position: "absolute",
+      top: 40,
+      right: 10,
+      background: "#fff",
+      border: "1px solid #ddd",
+      borderRadius: 10,
+      padding: 10,
+      fontSize: 12,
+      boxShadow: "0 5px 15px rgba(0,0,0,0.2)",
+      zIndex: 100,
+      width: 180,
+      textAlign: "left",
+    }}
+  >
+    <strong>Booked Times</strong>
+
+    <div style={{ marginTop: 5 }}>
+      {getRoomSchedule(room.name).length === 0 ? (
+        <div style={{ color: "#16a34a" }}>No bookings 🟢</div>
+      ) : (
+        getRoomSchedule(room.name).map((b, i) => (
+          <div key={i}>
+            🔴 {formatTime12(b.start)} - {formatTime12(b.end)}
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+)}
+    {/* ✅ STATUS DOT (PUT IT HERE) */}
+    <div
+      style={{
+        position: "absolute",
+        top: 10,
+        right: 10,
+        width: 12,
+        height: 12,
+        borderRadius: "50%",
+        background:
+          getRoomStatus(room.name) === "booked"
+            ? "#ef4444"
+            : "#22c55e",
+      }}
+      title={
+        getRoomStatus(room.name) === "booked"
+          ? "🔴 Booked now"
+          : "🟢 Available now"
+      }
+    />
+
+    <h4>{room.name}</h4>
+
+    <span style={{ color: "#16a34a" }}>
+      Choose your Preferred Time
+    </span>
+  </div>
+))}
         </div>
       </div>
     </div>

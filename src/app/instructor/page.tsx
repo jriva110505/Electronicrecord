@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 
 interface FormData {
   instructor: string;
-  section: string;
+  course: string;
   studentName: string;
   studentId: string;
   date: string;
@@ -19,7 +19,7 @@ export default function About(): JSX.Element {
 
   const [formData, setFormData] = useState<FormData>({
     instructor: "",
-    section: "",
+    course: "",
     studentName: "",
     studentId: "",
     date: "",
@@ -33,7 +33,7 @@ export default function About(): JSX.Element {
   const confirmSubmission = () => {
   const data = {
     instructor: formData.instructor,
-    section: formData.section,
+    course: formData.course,
     studentName: formData.studentName,
     studentId: formData.studentId,
     date: formData.date,
@@ -99,7 +99,7 @@ export default function About(): JSX.Element {
   const handleClear = () => {
     setFormData({
       instructor: "",
-      section: "",
+      course: "",
       studentName: "",
       studentId: "",
       date: "",
@@ -248,8 +248,8 @@ export default function About(): JSX.Element {
                 <motion.input
                   whileFocus={{ scale: 1.02 }}
                   type="text"
-                  name="section"
-                  value={formData.section}
+                  name="course"
+                  value={formData.course}
                   onChange={handleChange}
                   placeholder="BSN-2A, BSN-2B, etc."
                   required
